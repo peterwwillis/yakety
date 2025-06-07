@@ -434,6 +434,8 @@ endif()
 if(APPLE)
     target_link_libraries(test_transcription
         ${COREFOUNDATION_FRAMEWORK}
+        ${APPKIT_FRAMEWORK}
+        ${APPLICATION_SERVICES_FRAMEWORK}
     )
 endif()
 

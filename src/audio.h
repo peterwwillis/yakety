@@ -2,6 +2,7 @@
 #define AUDIO_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
 // Audio recording configuration
 typedef struct {
