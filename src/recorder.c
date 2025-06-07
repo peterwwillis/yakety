@@ -2,7 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#ifndef _WIN32
 #include <unistd.h>
+#else
+#include <windows.h>
+#define sleep(x) Sleep((x) * 1000)
+#endif
 #include "audio.h"
 
 static AudioRecorder* recorder = NULL;
@@ -129,7 +134,11 @@ int main(int argc, char* argv[]) {
     // Recording loop
     printf("🎵 Recording to %s...\n", output_file);
     while (!should_stop && audio_recorder_is_recording(recorder)) {
+#ifdef _WIN32
+        Sleep(100); // Sleep for 100ms
+#else
         usleep(100000); // Sleep for 100ms
+#endif
         
         // Print duration every second
         static int last_duration = -1;

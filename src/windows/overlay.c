@@ -1,6 +1,7 @@
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
+#include "overlay.h"
 
 #define OVERLAY_CLASS_NAME L"YaketyOverlay"
 #define OVERLAY_WIDTH 300
@@ -34,7 +35,7 @@ LRESULT CALLBACK overlay_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             SetBkMode(hdc, TRANSPARENT);
             SetTextColor(hdc, g_text_color);
             
-            HFONT font = CreateFont(24, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            HFONT font = CreateFontW(24, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                   DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                   CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial");
             HFONT oldFont = (HFONT)SelectObject(hdc, font);
@@ -63,8 +64,8 @@ static void create_overlay_window() {
     g_instance = GetModuleHandle(NULL);
     
     // Register window class
-    WNDCLASSEX wc = {0};
-    wc.cbSize = sizeof(WNDCLASSEX);
+    WNDCLASSEXW wc = {0};
+    wc.cbSize = sizeof(WNDCLASSEXW);
     wc.style = CS_HREDRAW | CS_VREDRAW;
     wc.lpfnWndProc = overlay_proc;
     wc.hInstance = g_instance;
@@ -72,7 +73,7 @@ static void create_overlay_window() {
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wc.lpszClassName = OVERLAY_CLASS_NAME;
     
-    RegisterClassEx(&wc);
+    RegisterClassExW(&wc);
     
     // Get screen dimensions
     int screenWidth = GetSystemMetrics(SM_CXSCREEN);
@@ -83,7 +84,7 @@ static void create_overlay_window() {
     int y = screenHeight - OVERLAY_HEIGHT - 100;
     
     // Create window
-    g_overlay_window = CreateWindowEx(
+    g_overlay_window = CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
         OVERLAY_CLASS_NAME,
         L"Yakety",

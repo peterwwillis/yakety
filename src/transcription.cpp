@@ -8,7 +8,7 @@ extern "C" {
 #ifdef WHISPER_AVAILABLE
 #include <vector>
 #include <fstream>
-#include "../whisper.cpp/include/whisper.h"
+#include "whisper.h"
 
 static struct whisper_context* ctx = NULL;
 
