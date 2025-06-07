@@ -92,6 +92,40 @@ int transcribe_audio(const float* audio_data, int n_samples, char* result, size_
         }
     }
     
+    // Trim whitespace before filtering
+    char* start = result;
+    char* end = result + strlen(result) - 1;
+    
+    // Trim leading whitespace
+    while (*start && (*start == ' ' || *start == '\t' || *start == '\n' || *start == '\r')) {
+        start++;
+    }
+    
+    // Trim trailing whitespace
+    while (end > start && (*end == ' ' || *end == '\t' || *end == '\n' || *end == '\r')) {
+        end--;
+    }
+    
+    // Null terminate after trimming
+    *(end + 1) = '\0';
+    
+    // Move trimmed string to beginning if needed
+    if (start != result) {
+        memmove(result, start, strlen(start) + 1);
+    }
+    
+    // Filter out transcriptions that start with bracket/star AND end with bracket/star
+    size_t len = strlen(result);
+    if (len >= 2) {
+        if ((result[0] == '[' || result[0] == '*') &&
+            (result[len-1] == ']' || result[len-1] == '*')) {
+            // Clear the result - this is a non-speech token or annotation
+            result[0] = '\0';
+            printf("✅ Filtered out non-speech token\n");
+            return 0;
+        }
+    }
+    
     printf("✅ Transcription complete: \"%s\"\n", result);
     return 0;
 }
