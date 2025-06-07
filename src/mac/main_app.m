@@ -6,6 +6,7 @@
 #include <string.h>
 #include <AppKit/AppKit.h>
 #include <CoreFoundation/CoreFoundation.h>
+#include <AVFoundation/AVFoundation.h>
 #include "../audio.h"
 #include "../overlay.h"
 #include "../menubar.h"
@@ -273,24 +274,54 @@ void signal_handler(int sig) {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSLog(@"Starting background initialization...");
         
-        // Request audio permissions
-        if (audio_request_permissions() != 0) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                NSAlert* alert = [[NSAlert alloc] init];
-                [alert setMessageText:@"Microphone Permission Required"];
-                [alert setInformativeText:@"Please grant microphone permission in System Preferences."];
-                [alert addButtonWithTitle:@"Quit"];
-                [alert runModal];
-                [NSApp terminate:nil];
-            });
-            return;
+        // Check audio permissions status (don't request yet - let miniaudio do it)
+        if (@available(macOS 10.14, *)) {
+            AVAuthorizationStatus status = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
+            
+            if (status == AVAuthorizationStatusDenied || status == AVAuthorizationStatusRestricted) {
+                // Permission already denied - show alert
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    NSAlert* alert = [[NSAlert alloc] init];
+                    [alert setMessageText:@"Microphone Permission Required"];
+                    [alert setInformativeText:@"Microphone access is denied. Please grant permission in System Preferences → Security & Privacy → Privacy → Microphone."];
+                    [alert addButtonWithTitle:@"Open System Preferences"];
+                    [alert addButtonWithTitle:@"Quit"];
+                    
+                    NSModalResponse response = [alert runModal];
+                    if (response == NSAlertFirstButtonReturn) {
+                        [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"]];
+                    }
+                    [NSApp terminate:nil];
+                });
+                return;
+            }
         }
         
-        NSLog(@"Audio permissions granted");
-        
         // Create audio recorder with Whisper-compatible settings
+        // This will trigger the system permission prompt on first run
         recorder = audio_recorder_create(&WHISPER_AUDIO_CONFIG);
         if (!recorder) {
+            // Check if it failed due to permissions
+            if (@available(macOS 10.14, *)) {
+                AVAuthorizationStatus status = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
+                if (status == AVAuthorizationStatusNotDetermined || status == AVAuthorizationStatusDenied) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        NSAlert* alert = [[NSAlert alloc] init];
+                        [alert setMessageText:@"Microphone Permission Required"];
+                        [alert setInformativeText:@"Please grant microphone permission and restart Yakety.\n\nGo to System Preferences → Security & Privacy → Privacy → Microphone."];
+                        [alert addButtonWithTitle:@"Open System Preferences"];
+                        [alert addButtonWithTitle:@"Quit"];
+                        
+                        NSModalResponse response = [alert runModal];
+                        if (response == NSAlertFirstButtonReturn) {
+                            [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"]];
+                        }
+                        [NSApp terminate:nil];
+                    });
+                    return;
+                }
+            }
+            
             dispatch_async(dispatch_get_main_queue(), ^{
                 NSAlert* alert = [[NSAlert alloc] init];
                 [alert setMessageText:@"Audio Initialization Failed"];
