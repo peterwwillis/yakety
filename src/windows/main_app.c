@@ -20,7 +20,7 @@ void menubar_cleanup(void);
 // Global variables
 static bool g_running = true;
 static AudioRecorder* g_recorder = NULL;
-static TranscriptionContext* g_whisper_ctx = NULL;
+static void* g_whisper_ctx = NULL;  // Using void* since TranscriptionContext is not defined
 
 void cleanup() {
     if (g_recorder) {
@@ -32,7 +32,7 @@ void cleanup() {
     }
     
     if (g_whisper_ctx) {
-        transcription_context_free(g_whisper_ctx);
+        transcription_cleanup();
         g_whisper_ctx = NULL;
     }
     
@@ -52,12 +52,14 @@ void process_recording() {
     }
     
     // Transcribe
-    char* text = transcription_process(g_whisper_ctx, audio_data, audio_size);
-    
-    if (text && strlen(text) > 0) {
-        overlay_show_result(text);
-        clipboard_paste_text(text);
-        free(text);
+    char result[1024];
+    if (transcribe_audio(audio_data, (int)audio_size, result, sizeof(result)) == 0) {
+        if (strlen(result) > 0) {
+            overlay_show_result(result);
+            clipboard_paste_text(result);
+        } else {
+            overlay_hide();
+        }
     } else {
         overlay_hide();
     }
@@ -81,12 +83,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
     
     // Initialize whisper
-    g_whisper_ctx = transcription_context_init(WHISPER_MODEL_BASE_EN);
-    if (!g_whisper_ctx) {
-        MessageBox(NULL, L"Failed to load Whisper model", L"Error", MB_OK | MB_ICONERROR);
+    if (transcription_init("whisper.cpp/models/ggml-base.en.bin") != 0) {
+        MessageBox(NULL, L"Failed to load Whisper model\nNote: This may be a cross-compiled build without whisper.cpp support", L"Error", MB_OK | MB_ICONERROR);
         cleanup();
         return 1;
     }
+    g_whisper_ctx = (void*)1;  // Non-null to indicate initialized
     
     // Create audio recorder
     g_recorder = audio_recorder_create(&WHISPER_AUDIO_CONFIG);

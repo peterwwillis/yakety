@@ -141,7 +141,7 @@ void fn_key_released() {
 // Signal handler for graceful shutdown
 void signal_handler(int sig) {
     if (sig == SIGINT || sig == SIGTERM) {
-        printf("\n🛑 Shutting down Whisperer...\n");
+        printf("\n🛑 Shutting down Yakety...\n");
         running = false;
         stop_keylogger();
         
@@ -167,7 +167,7 @@ int main(int argc, char *argv[]) {
         [NSApplication sharedApplication];
         [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
         
-        printf("🎤 Starting Whisperer...\n");
+        printf("🎤 Starting Yakety...\n");
         
         // Initialize overlay system only (no menubar for CLI)
         overlay_init();
@@ -201,7 +201,7 @@ int main(int argc, char *argv[]) {
     fflush(stdout);
     
     // Try multiple locations for the model
-    const char* env_model = getenv("WHISPERER_MODEL_PATH");
+    const char* env_model = getenv("YAKETY_MODEL_PATH");
     const char* static_paths[] = {
         // App bundle Resources
         "../Resources/models/ggml-base.en.bin",
@@ -210,7 +210,7 @@ int main(int argc, char *argv[]) {
         // Development path from project root
         "whisper.cpp/models/ggml-base.en.bin",
         // Installed path
-        "/Applications/Whisperer.app/Contents/Resources/models/ggml-base.en.bin",
+        "/Applications/Yakety.app/Contents/Resources/models/ggml-base.en.bin",
         NULL
     };
     
@@ -258,13 +258,13 @@ int main(int argc, char *argv[]) {
     }
     printf("✅ Keylogger started\n");
     
-    printf("\n🎤 Whisperer ready! Press and hold FN key to record.\n");
+    printf("\n🎤 Yakety ready! Press and hold FN key to record.\n");
     printf("   Hold FN → speak → release FN → text appears!\n\n");
     
     // Run the Core Foundation event loop to process key events
     CFRunLoopRun();
     
-    printf("👋 Whisperer stopped.\n");
+    printf("👋 Yakety stopped.\n");
     return 0;
     }
 }

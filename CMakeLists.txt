@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(whisperer)
+project(yakety)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -61,14 +61,34 @@ endif()
 
 # Check if whisper.cpp exists
 set(WHISPER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/whisper.cpp")
-set(WHISPER_BUILD_DIR "${WHISPER_DIR}/build")
+if(CMAKE_CROSSCOMPILING AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    # For cross-compilation to Windows, use a different build directory
+    set(WHISPER_BUILD_DIR "${WHISPER_DIR}/build-windows")
+else()
+    set(WHISPER_BUILD_DIR "${WHISPER_DIR}/build")
+endif()
 
-if(EXISTS "${WHISPER_BUILD_DIR}/src/libwhisper.a")
-    message(STATUS "Found whisper.cpp library at ${WHISPER_BUILD_DIR}/src/libwhisper.a")
+# Check for appropriate library file based on platform
+if(WIN32 OR (CMAKE_CROSSCOMPILING AND CMAKE_SYSTEM_NAME STREQUAL "Windows"))
+    set(WHISPER_LIB_FILE "${WHISPER_BUILD_DIR}/src/whisper.lib")
+    if(NOT EXISTS "${WHISPER_LIB_FILE}")
+        set(WHISPER_LIB_FILE "${WHISPER_BUILD_DIR}/src/libwhisper.a")
+    endif()
+else()
+    set(WHISPER_LIB_FILE "${WHISPER_BUILD_DIR}/src/libwhisper.a")
+endif()
+
+if(EXISTS "${WHISPER_LIB_FILE}")
+    message(STATUS "Found whisper.cpp library at ${WHISPER_LIB_FILE}")
     set(WHISPER_AVAILABLE TRUE)
 else()
-    message(WARNING "whisper.cpp library not found. Run ./build.sh to build whisper.cpp first.")
-    set(WHISPER_AVAILABLE FALSE)
+    if(CMAKE_CROSSCOMPILING)
+        message(WARNING "whisper.cpp library not found for cross-compilation. Building without transcription support.")
+        set(WHISPER_AVAILABLE FALSE)
+    else()
+        message(WARNING "whisper.cpp library not found. Run ./build.sh to build whisper.cpp first.")
+        set(WHISPER_AVAILABLE FALSE)
+    endif()
 endif()
 
 # Common audio sources
@@ -79,16 +99,16 @@ elseif(WIN32)
     # Windows doesn't need special audio permissions
 endif()
 
-# Source files for whisperer CLI
+# Source files for yakety CLI
 if(APPLE)
-    set(WHISPERER_SOURCES
+    set(YAKETY_SOURCES
         src/mac/main.m
         src/keylogger.c
         ${AUDIO_SOURCES}
         src/mac/overlay.m
     )
 elseif(WIN32)
-    set(WHISPERER_SOURCES
+    set(YAKETY_SOURCES
         src/windows/main.c
         src/windows/keylogger.c
         ${AUDIO_SOURCES}
@@ -98,11 +118,11 @@ elseif(WIN32)
 endif()
 
 # Add transcription sources
-list(APPEND WHISPERER_SOURCES src/transcription.cpp)
+list(APPEND YAKETY_SOURCES src/transcription.cpp)
 
-# Source files for whisperer app
+# Source files for yakety app
 if(APPLE)
-    set(WHISPERER_APP_SOURCES
+    set(YAKETY_APP_SOURCES
         src/mac/main_app.m
         src/keylogger.c
         ${AUDIO_SOURCES}
@@ -110,7 +130,7 @@ if(APPLE)
         src/mac/menubar.m
     )
 elseif(WIN32)
-    set(WHISPERER_APP_SOURCES
+    set(YAKETY_APP_SOURCES
         src/windows/main_app.c
         src/windows/keylogger.c
         ${AUDIO_SOURCES}
@@ -121,7 +141,7 @@ elseif(WIN32)
 endif()
 
 # Add transcription sources
-list(APPEND WHISPERER_APP_SOURCES src/transcription.cpp)
+list(APPEND YAKETY_APP_SOURCES src/transcription.cpp)
 
 # Source files for recorder
 set(RECORDER_SOURCES
@@ -129,18 +149,49 @@ set(RECORDER_SOURCES
     ${AUDIO_SOURCES}
 )
 
-# Create the whisperer CLI executable
-add_executable(whisperer ${WHISPERER_SOURCES})
-target_include_directories(whisperer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+# Create the yakety CLI executable
+add_executable(yakety ${YAKETY_SOURCES})
+target_include_directories(yakety PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-# Create the whisperer app executable
+# Create the yakety app executable
 if(WIN32)
     # Windows GUI app (no console window)
-    add_executable(whisperer-app WIN32 ${WHISPERER_APP_SOURCES})
+    add_executable(yakety-app WIN32 ${YAKETY_APP_SOURCES})
+elseif(APPLE)
+    # macOS app bundle
+    add_executable(yakety-app MACOSX_BUNDLE ${YAKETY_APP_SOURCES})
+    
+    # Set bundle properties
+    set_target_properties(yakety-app PROPERTIES
+        MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist
+        MACOSX_BUNDLE_BUNDLE_NAME "Yakety"
+        MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+    )
+    
+    # Copy resources to bundle
+    set(ICON_FILE "${CMAKE_CURRENT_SOURCE_DIR}/assets/yakety.icns")
+    set(MENUBAR_ICON "${CMAKE_CURRENT_SOURCE_DIR}/assets/generated/menubar.png")
+    set(MENUBAR_ICON_2X "${CMAKE_CURRENT_SOURCE_DIR}/assets/generated/menubar@2x.png")
+    
+    if(EXISTS ${ICON_FILE})
+        set_source_files_properties(${ICON_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+        target_sources(yakety-app PRIVATE ${ICON_FILE})
+    endif()
+    
+    if(EXISTS ${MENUBAR_ICON})
+        set_source_files_properties(${MENUBAR_ICON} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+        target_sources(yakety-app PRIVATE ${MENUBAR_ICON})
+    endif()
+    
+    if(EXISTS ${MENUBAR_ICON_2X})
+        set_source_files_properties(${MENUBAR_ICON_2X} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+        target_sources(yakety-app PRIVATE ${MENUBAR_ICON_2X})
+    endif()
 else()
-    add_executable(whisperer-app ${WHISPERER_APP_SOURCES})
+    add_executable(yakety-app ${YAKETY_APP_SOURCES})
 endif()
-target_include_directories(whisperer-app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(yakety-app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # Create the recorder executable
 add_executable(recorder ${RECORDER_SOURCES})
@@ -155,9 +206,9 @@ if(WHISPER_AVAILABLE)
     target_compile_definitions(test_transcription PRIVATE WHISPER_AVAILABLE)
 endif()
 
-# Link frameworks for whisperer CLI
+# Link frameworks for yakety CLI
 if(APPLE)
-    target_link_libraries(whisperer
+    target_link_libraries(yakety
         ${APPLICATION_SERVICES_FRAMEWORK}
         ${APPKIT_FRAMEWORK}
         ${COREFOUNDATION_FRAMEWORK}
@@ -166,12 +217,12 @@ if(APPLE)
         ${AVFOUNDATION_FRAMEWORK}
     )
 else()
-    target_link_libraries(whisperer ${PLATFORM_LIBS})
+    target_link_libraries(yakety ${PLATFORM_LIBS})
 endif()
 
-# Link frameworks for whisperer app
+# Link frameworks for yakety app
 if(APPLE)
-    target_link_libraries(whisperer-app
+    target_link_libraries(yakety-app
         ${APPLICATION_SERVICES_FRAMEWORK}
         ${APPKIT_FRAMEWORK}
         ${COREFOUNDATION_FRAMEWORK}
@@ -181,40 +232,51 @@ if(APPLE)
         ${AVFOUNDATION_FRAMEWORK}
     )
 else()
-    target_link_libraries(whisperer-app ${PLATFORM_LIBS})
+    target_link_libraries(yakety-app ${PLATFORM_LIBS})
 endif()
 
-# Link whisper.cpp - required for app to work
-if(NOT WHISPER_AVAILABLE)
+# Link whisper.cpp - required for app to work (except when cross-compiling)
+if(NOT WHISPER_AVAILABLE AND NOT CMAKE_CROSSCOMPILING)
     message(FATAL_ERROR "whisper.cpp library not found. Run ./build.sh to build whisper.cpp first.")
 endif()
 
-# Add whisper.cpp build directory to find the whisper target
-add_subdirectory(${WHISPER_DIR} ${WHISPER_BUILD_DIR} EXCLUDE_FROM_ALL)
+# Add whisper.cpp only if available
+if(WHISPER_AVAILABLE)
+    # Add whisper.cpp build directory to find the whisper target
+    add_subdirectory(${WHISPER_DIR} ${WHISPER_BUILD_DIR} EXCLUDE_FROM_ALL)
+    
+    target_include_directories(yakety PRIVATE ${WHISPER_DIR})
+    target_link_libraries(yakety whisper)
+    
+    target_include_directories(yakety-app PRIVATE ${WHISPER_DIR})
+    target_link_libraries(yakety-app whisper)
+    
+    # Add compile definition to enable whisper code
+    target_compile_definitions(yakety PRIVATE WHISPER_AVAILABLE)
+    target_compile_definitions(yakety-app PRIVATE WHISPER_AVAILABLE)
+else()
+    message(WARNING "Building without whisper.cpp support")
+endif()
 
-target_include_directories(whisperer PRIVATE ${WHISPER_DIR})
-target_link_libraries(whisperer whisper)
-
-target_include_directories(whisperer-app PRIVATE ${WHISPER_DIR})
-target_link_libraries(whisperer-app whisper)
-
-# Link Metal framework for GPU acceleration
-find_library(METAL_FRAMEWORK Metal)
-find_library(METALKIT_FRAMEWORK MetalKit)
-find_library(METALPERFORMANCE_FRAMEWORK MetalPerformanceShaders)
-
-if(METAL_FRAMEWORK AND METALKIT_FRAMEWORK AND METALPERFORMANCE_FRAMEWORK)
-    target_link_libraries(whisperer
-        ${METAL_FRAMEWORK}
-        ${METALKIT_FRAMEWORK}
-        ${METALPERFORMANCE_FRAMEWORK}
-    )
-    target_link_libraries(whisperer-app
-        ${METAL_FRAMEWORK}
-        ${METALKIT_FRAMEWORK}
-        ${METALPERFORMANCE_FRAMEWORK}
-    )
-    message(STATUS "Linked Metal frameworks for GPU acceleration")
+# Link Metal framework for GPU acceleration (macOS only)
+if(APPLE AND NOT CMAKE_CROSSCOMPILING)
+    find_library(METAL_FRAMEWORK Metal)
+    find_library(METALKIT_FRAMEWORK MetalKit)
+    find_library(METALPERFORMANCE_FRAMEWORK MetalPerformanceShaders)
+    
+    if(METAL_FRAMEWORK AND METALKIT_FRAMEWORK AND METALPERFORMANCE_FRAMEWORK AND WHISPER_AVAILABLE)
+        target_link_libraries(yakety
+            ${METAL_FRAMEWORK}
+            ${METALKIT_FRAMEWORK}
+            ${METALPERFORMANCE_FRAMEWORK}
+        )
+        target_link_libraries(yakety-app
+            ${METAL_FRAMEWORK}
+            ${METALKIT_FRAMEWORK}
+            ${METALPERFORMANCE_FRAMEWORK}
+        )
+        message(STATUS "Linked Metal frameworks for GPU acceleration")
+    endif()
 endif()
 
 # Link frameworks for recorder
@@ -231,9 +293,11 @@ else()
 endif()
 
 # Link frameworks for test_transcription
-target_link_libraries(test_transcription
-    ${COREFOUNDATION_FRAMEWORK}
-)
+if(APPLE)
+    target_link_libraries(test_transcription
+        ${COREFOUNDATION_FRAMEWORK}
+    )
+endif()
 
 # Link whisper.cpp to test_transcription if available
 if(WHISPER_AVAILABLE)
@@ -250,12 +314,12 @@ if(WHISPER_AVAILABLE)
 endif()
 
 # Set output directory for all executables
-set_target_properties(whisperer whisperer-app recorder test_transcription PROPERTIES
+set_target_properties(yakety yakety-app recorder test_transcription PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
 # Compiler flags for macOS
-target_compile_options(whisperer PRIVATE
+target_compile_options(yakety PRIVATE
     -Wall
     -Wextra
     -Werror
@@ -263,7 +327,7 @@ target_compile_options(whisperer PRIVATE
     -Wno-error=unused-function
 )
 
-target_compile_options(whisperer-app PRIVATE
+target_compile_options(yakety-app PRIVATE
     -Wall
     -Wextra
     -Werror

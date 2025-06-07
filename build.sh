@@ -2,7 +2,17 @@
 
 set -e
 
-echo "🔨 Building Whisperer..."
+echo "🔨 Building Yakety..."
+
+# Generate icons if SVG exists and tools are available
+if [ -f "assets/yakety.svg" ] && command -v rsvg-convert &> /dev/null && command -v iconutil &> /dev/null; then
+    echo "🎨 Generating icons from SVG..."
+    ./generate-icons.sh
+elif [ -f "assets/yakety.svg" ]; then
+    echo "⚠️  SVG found but icon generation tools not installed."
+    echo "   Install with: brew install librsvg"
+    echo "   Continuing without icon generation..."
+fi
 
 # Create build directory
 mkdir -p build
@@ -39,7 +49,7 @@ if [ ! -f "$MODEL_FILE" ]; then
     cd ..
 fi
 
-# Now build main whisperer application
+# Now build main yakety application
 cd build
 
 # Run CMake configuration with Ninja generator
@@ -51,17 +61,17 @@ echo "🔨 Compiling..."
 ninja
 
 echo "✅ Build complete! Binaries:"
-echo "  ./build/whisperer         - CLI version (no tray icon)"
-echo "  ./build/whisperer-app     - App version (with tray icon)"
-echo "  ./build/recorder          - Audio recording utility"
+echo "  ./build/yakety             - CLI version (no tray icon)"
+echo "  ./build/yakety-app.app     - macOS app bundle (with tray icon)"
+echo "  ./build/recorder           - Audio recording utility"
 echo "  ./build/test_transcription - Test whisper.cpp transcription"
 echo ""
 echo "To run:"
-echo "  ./build/whisperer                        # CLI version - runs in terminal"
-echo "  ./build/whisperer-app                    # App version - runs with tray icon"
+echo "  ./build/yakety                           # CLI version - runs in terminal"
+echo "  open ./build/yakety-app.app              # App version - runs with tray icon"
 echo "  ./build/recorder output.wav              # Record audio to file"
 echo "  ./build/test_transcription test/test1.wav # Test transcription"
 echo ""
 echo "⚠️  Note: This application requires accessibility permissions to monitor keyboard events."
 echo "   Go to System Preferences → Security & Privacy → Privacy → Accessibility"
-echo "   and add your terminal application (for CLI) or whisperer-app (for app version) to the list."
+echo "   and add your terminal application (for CLI) or yakety-app (for app version) to the list."

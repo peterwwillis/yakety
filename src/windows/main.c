@@ -9,7 +9,7 @@
 // Global variables
 static bool g_running = true;
 static AudioRecorder* g_recorder = NULL;
-static TranscriptionContext* g_whisper_ctx = NULL;
+static void* g_whisper_ctx = NULL;  // Using void* since TranscriptionContext is not defined
 
 // Function prototypes
 int keylogger_init(void);
@@ -41,7 +41,7 @@ void cleanup() {
     }
     
     if (g_whisper_ctx) {
-        transcription_context_free(g_whisper_ctx);
+        transcription_cleanup();
         g_whisper_ctx = NULL;
     }
     
@@ -62,21 +62,24 @@ void process_recording() {
     }
     
     // Transcribe
-    char* text = transcription_process(g_whisper_ctx, audio_data, audio_size);
-    
-    if (text && strlen(text) > 0) {
-        printf("Transcription: %s\n", text);
-        overlay_show_result(text);
-        clipboard_paste_text(text);
-        free(text);
+    char result[1024];
+    if (transcribe_audio(audio_data, (int)audio_size, result, sizeof(result)) == 0) {
+        if (strlen(result) > 0) {
+            printf("Transcription: %s\n", result);
+            overlay_show_result(result);
+            clipboard_paste_text(result);
+        } else {
+            printf("No transcription result\n");
+            overlay_hide();
+        }
     } else {
-        printf("No transcription result\n");
+        printf("Transcription failed\n");
         overlay_hide();
     }
 }
 
 int main(int argc, char* argv[]) {
-    printf("Whisperer - Hold Right Ctrl key to record and transcribe speech\n");
+    printf("Yakety - Hold Right Ctrl key to record and transcribe speech\n");
     printf("Note: Using Right Ctrl instead of FN key on Windows\n");
     
     // Set up console control handler
@@ -90,11 +93,12 @@ int main(int argc, char* argv[]) {
     
     // Initialize whisper
     printf("Loading Whisper model...\n");
-    g_whisper_ctx = transcription_context_init(WHISPER_MODEL_BASE_EN);
-    if (!g_whisper_ctx) {
+    if (transcription_init("whisper.cpp/models/ggml-base.en.bin") != 0) {
         fprintf(stderr, "Failed to initialize Whisper\n");
+        fprintf(stderr, "Note: This may be a cross-compiled build without whisper.cpp support\n");
         return 1;
     }
+    g_whisper_ctx = (void*)1;  // Non-null to indicate initialized
     printf("Whisper model loaded successfully\n");
     
     // Create audio recorder

@@ -4,6 +4,8 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef WHISPER_AVAILABLE
 #include <vector>
 #include <fstream>
 #include "../whisper.cpp/include/whisper.h"
@@ -249,3 +251,34 @@ void transcription_cleanup(void) {
         ctx = NULL;
     }
 }
+
+#else // !WHISPER_AVAILABLE
+
+// Stub implementations when whisper.cpp is not available
+
+int transcription_init(const char* model_path) {
+    fprintf(stderr, "ERROR: Yakety was built without whisper.cpp support\n");
+    return -1;
+}
+
+int transcribe_audio(const float* audio_data, int n_samples, char* result, size_t result_size) {
+    fprintf(stderr, "ERROR: Yakety was built without whisper.cpp support\n");
+    if (result && result_size > 0) {
+        result[0] = '\0';
+    }
+    return -1;
+}
+
+int transcribe_file(const char* audio_file, char* result, size_t result_size) {
+    fprintf(stderr, "ERROR: Yakety was built without whisper.cpp support\n");
+    if (result && result_size > 0) {
+        result[0] = '\0';
+    }
+    return -1;
+}
+
+void transcription_cleanup(void) {
+    // Nothing to clean up in stub implementation
+}
+
+#endif // WHISPER_AVAILABLE

@@ -1,5 +1,5 @@
 @echo off
-echo Building Whisperer for Windows...
+echo Building Yakety for Windows...
 
 :: Check if cmake is available
 where cmake >nul 2>nul
@@ -60,7 +60,7 @@ if not exist "build" mkdir build
 cd build
 
 :: Configure the project
-echo Configuring Whisperer...
+echo Configuring Yakety...
 cmake .. -DCMAKE_BUILD_TYPE=Release
 if %errorlevel% neq 0 (
     echo ERROR: CMake configuration failed
@@ -68,7 +68,7 @@ if %errorlevel% neq 0 (
 )
 
 :: Build the project
-echo Building Whisperer...
+echo Building Yakety...
 cmake --build . --config Release
 if %errorlevel% neq 0 (
     echo ERROR: Build failed
@@ -81,8 +81,8 @@ echo.
 echo Build complete!
 echo.
 echo Executables:
-echo   - build\Release\whisperer.exe     (CLI version - run as administrator)
-echo   - build\Release\whisperer-app.exe (GUI version with system tray - run as administrator)
+echo   - build\Release\yakety.exe     (CLI version - run as administrator)
+echo   - build\Release\yakety-app.exe (GUI version with system tray - run as administrator)
 echo   - build\Release\recorder.exe      (Audio recorder utility)
 echo.
 echo Note: Administrator privileges are required for keyboard monitoring.

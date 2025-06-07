@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define OVERLAY_CLASS_NAME L"WhispererOverlay"
+#define OVERLAY_CLASS_NAME L"YaketyOverlay"
 #define OVERLAY_WIDTH 300
 #define OVERLAY_HEIGHT 100
 
@@ -86,7 +86,7 @@ static void create_overlay_window() {
     g_overlay_window = CreateWindowEx(
         WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
         OVERLAY_CLASS_NAME,
-        L"Whisperer",
+        L"Yakety",
         WS_POPUP,
         x, y, OVERLAY_WIDTH, OVERLAY_HEIGHT,
         NULL, NULL, g_instance, NULL

@@ -1,6 +1,6 @@
-# Whisperer - Audio Transcription Hotkey
+# Yakety - Instant Voice-to-Text
 
-Cross-platform app: Hold hotkey → record audio → transcribe with local Whisper → paste text
+Cross-platform app that lets you instantly convert speech to text with a simple hotkey. Hold the key, speak naturally, release to paste transcribed text anywhere.
 
 - **macOS**: Hold FN key
 - **Windows**: Hold Right Ctrl key
@@ -14,7 +14,7 @@ Cross-platform app: Hold hotkey → record audio → transcribe with local Whisp
 ./build.sh
 
 # Start FN key transcription (requires accessibility permissions)
-./build/whisperer
+./build/yakety
 
 # Record audio to file
 ./build/recorder output.wav
@@ -26,7 +26,7 @@ Cross-platform app: Hold hotkey → record audio → transcribe with local Whisp
 build.bat
 
 # Start Right Ctrl transcription (requires admin privileges)
-build\Release\whisperer.exe
+build\Release\yakety.exe
 
 # Record audio to file
 build\Release\recorder.exe output.wav
@@ -34,9 +34,9 @@ build\Release\recorder.exe output.wav
 
 ## Applications
 
-### 🎤 Whisperer (`./build/whisperer`)
+### 🎤 Yakety (`./build/yakety`)
 
-Main application that listens for FN key press/release to record and transcribe audio.
+Main application that converts your speech to text instantly. Just hold the hotkey, speak, and release to paste.
 
 **Features:**
 
@@ -49,11 +49,11 @@ Main application that listens for FN key press/release to record and transcribe 
 
 ```bash
 # macOS
-./build/whisperer
+./build/yakety
 # Press and hold FN key to record
 
 # Windows (run as administrator)
-build\Release\whisperer.exe
+build\Release\yakety.exe
 # Press and hold Right Ctrl key to record
 ```
 
@@ -148,7 +148,7 @@ audio_recorder_destroy(recorder);
 ### Permissions
 
 #### macOS
-**Accessibility Permission** (for whisperer):
+**Accessibility Permission** (for yakety):
 - System Preferences → Security & Privacy → Privacy → Accessibility
 - Add your Terminal application
 
@@ -157,7 +157,7 @@ audio_recorder_destroy(recorder);
 - System Preferences → Security & Privacy → Privacy → Microphone
 
 #### Windows
-**Administrator Privileges** (for whisperer):
+**Administrator Privileges** (for yakety):
 - Right-click executable → Run as administrator
 - Required for keyboard monitoring (SetWindowsHookEx)
 
@@ -187,7 +187,7 @@ audio_recorder_destroy(recorder);
 
 ### 🚧 Phase 4: Audio Recording Integration (Planned)
 
-- Integrate audio module into main whisperer app
+- Integrate audio module into main yakety app
 - Start/stop recording on FN key events
 - Handle audio format requirements for whisper.cpp
 
@@ -205,7 +205,7 @@ audio_recorder_destroy(recorder);
 ## Files
 
 ```
-whisperer/
+yakety/
 ├── src/
 │   ├── mac/            # macOS-specific code
 │   │   ├── main.m      # macOS CLI entry point
@@ -272,5 +272,16 @@ rm -rf build && ./build.sh
 - **Metal-optimized** whisper.cpp integration (planned)
 
 ---
+
+## About Yakety
+
+Yakety transforms the way you input text by making voice transcription as simple as holding a key. Perfect for:
+- Quick messages and emails
+- Taking notes during meetings
+- Accessibility needs
+- Reducing typing strain
+- Capturing thoughts instantly
+
+Using state-of-the-art Whisper AI running locally on your machine, Yakety ensures your voice data never leaves your computer.
 
 ⚠️ **Note**: Claude cannot test this application. All testing requires the human user to run the programs and report results.

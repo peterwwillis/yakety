@@ -32,8 +32,8 @@ LRESULT CALLBACK tray_window_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
             switch (LOWORD(wParam)) {
                 case ID_TRAY_ABOUT:
                     MessageBoxW(hwnd, 
-                              L"Whisperer\n\nHold Right Ctrl to record and transcribe speech.\n\nCross-platform speech-to-text using Whisper.", 
-                              L"About Whisperer", 
+                              L"Yakety\n\nHold Right Ctrl to record and transcribe speech.\n\nCross-platform speech-to-text using Whisper.", 
+                              L"About Yakety", 
                               MB_OK | MB_ICONINFORMATION);
                     break;
                     
@@ -62,7 +62,7 @@ int menubar_init(void) {
     wc.cbSize = sizeof(WNDCLASSEX);
     wc.lpfnWndProc = tray_window_proc;
     wc.hInstance = GetModuleHandle(NULL);
-    wc.lpszClassName = L"WhispererTrayWindow";
+    wc.lpszClassName = L"YaketyTrayWindow";
     
     if (!RegisterClassEx(&wc)) {
         return -1;
@@ -71,8 +71,8 @@ int menubar_init(void) {
     // Create hidden window
     g_hidden_window = CreateWindowEx(
         0,
-        L"WhispererTrayWindow",
-        L"Whisperer",
+        L"YaketyTrayWindow",
+        L"Yakety",
         0,
         0, 0, 0, 0,
         NULL, NULL,
@@ -86,9 +86,9 @@ int menubar_init(void) {
     
     // Create tray menu
     g_tray_menu = CreatePopupMenu();
-    AppendMenu(g_tray_menu, MF_STRING, ID_TRAY_ABOUT, L"About Whisperer");
+    AppendMenu(g_tray_menu, MF_STRING, ID_TRAY_ABOUT, L"About Yakety");
     AppendMenu(g_tray_menu, MF_SEPARATOR, 0, NULL);
-    AppendMenu(g_tray_menu, MF_STRING, ID_TRAY_QUIT, L"Quit Whisperer");
+    AppendMenu(g_tray_menu, MF_STRING, ID_TRAY_QUIT, L"Quit Yakety");
     
     // Create tray icon
     g_tray_icon.cbSize = sizeof(NOTIFYICONDATA);
@@ -100,7 +100,7 @@ int menubar_init(void) {
     // Load default application icon
     g_tray_icon.hIcon = LoadIcon(NULL, IDI_APPLICATION);
     
-    wcscpy_s(g_tray_icon.szTip, 128, L"Whisperer - Right Ctrl to record");
+    wcscpy_s(g_tray_icon.szTip, 128, L"Yakety - Right Ctrl to record");
     
     // Add to system tray
     if (!Shell_NotifyIcon(NIM_ADD, &g_tray_icon)) {

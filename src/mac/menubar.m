@@ -18,7 +18,7 @@ static NSStatusItem* statusItem = nil;
 
 - (void)about:(id)sender {
     NSAlert* alert = [[NSAlert alloc] init];
-    [alert setMessageText:@"Whisperer"];
+    [alert setMessageText:@"Yakety"];
     [alert setInformativeText:@"Voice transcription for macOS\n\nHold FN key to record and transcribe speech."];
     [alert addButtonWithTitle:@"OK"];
     [alert runModal];
@@ -42,9 +42,20 @@ void menubar_init(void) {
             return;
         }
         
-        // Set text-based icon for reliability
-        statusItem.button.title = @"🎤";
-        NSLog(@"Set microphone emoji as icon");
+        // Load icon image
+        NSString* iconPath = [[NSBundle mainBundle] pathForResource:@"menubar" ofType:@"png"];
+        NSImage* icon = nil;
+        
+        if (iconPath) {
+            icon = [[NSImage alloc] initWithContentsOfFile:iconPath];
+            [icon setTemplate:YES]; // Makes it adapt to dark/light mode
+            statusItem.button.image = icon;
+            NSLog(@"Loaded menubar icon from bundle");
+        } else {
+            // Fallback to emoji if icon not found
+            statusItem.button.title = @"🎤";
+            NSLog(@"Icon not found in bundle, using emoji fallback");
+        }
         
         // Create menu
         NSMenu* menu = [[NSMenu alloc] init];
@@ -52,7 +63,7 @@ void menubar_init(void) {
         // Add menu items
         menuDelegate = [[MenuBarDelegate alloc] init];
         
-        NSMenuItem* aboutItem = [[NSMenuItem alloc] initWithTitle:@"About Whisperer" 
+        NSMenuItem* aboutItem = [[NSMenuItem alloc] initWithTitle:@"About Yakety" 
                                                           action:@selector(about:) 
                                                    keyEquivalent:@""];
         [aboutItem setTarget:menuDelegate];
@@ -60,7 +71,7 @@ void menubar_init(void) {
         
         [menu addItem:[NSMenuItem separatorItem]];
         
-        NSMenuItem* quitItem = [[NSMenuItem alloc] initWithTitle:@"Quit Whisperer" 
+        NSMenuItem* quitItem = [[NSMenuItem alloc] initWithTitle:@"Quit Yakety" 
                                                          action:@selector(quit:) 
                                                   keyEquivalent:@"q"];
         [quitItem setTarget:menuDelegate];

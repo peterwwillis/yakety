@@ -173,7 +173,7 @@ void signal_handler(int sig) {
 
 - (void)showAbout:(id)sender {
     NSAlert* alert = [[NSAlert alloc] init];
-    [alert setMessageText:@"Whisperer"];
+    [alert setMessageText:@"Yakety"];
     [alert setInformativeText:@"Voice transcription for macOS\n\nHold FN key to record and transcribe speech."];
     [alert addButtonWithTitle:@"OK"];
     [alert runModal];
@@ -194,13 +194,27 @@ void signal_handler(int sig) {
     
     // Create status bar item immediately like in the working test
     self.statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
-    self.statusItem.button.title = @"🎤";
+    
+    // Load icon image
+    NSString* iconPath = [[NSBundle mainBundle] pathForResource:@"menubar" ofType:@"png"];
+    NSImage* icon = nil;
+    
+    if (iconPath) {
+        icon = [[NSImage alloc] initWithContentsOfFile:iconPath];
+        [icon setTemplate:YES]; // Makes it adapt to dark/light mode
+        self.statusItem.button.image = icon;
+        NSLog(@"Loaded menubar icon from bundle");
+    } else {
+        // Fallback to emoji if icon not found
+        self.statusItem.button.title = @"🎤";
+        NSLog(@"Icon not found in bundle, using emoji fallback");
+    }
     
     // Create menu
     NSMenu *menu = [[NSMenu alloc] init];
-    [menu addItemWithTitle:@"About Whisperer" action:@selector(showAbout:) keyEquivalent:@""];
+    [menu addItemWithTitle:@"About Yakety" action:@selector(showAbout:) keyEquivalent:@""];
     [menu addItem:[NSMenuItem separatorItem]];
-    [menu addItemWithTitle:@"Quit Whisperer" action:@selector(quitApp:) keyEquivalent:@"q"];
+    [menu addItemWithTitle:@"Quit Yakety" action:@selector(quitApp:) keyEquivalent:@"q"];
     
     self.statusItem.menu = menu;
     
@@ -246,7 +260,7 @@ void signal_handler(int sig) {
         
         // Initialize Whisper
         // Try multiple locations for the model
-        const char* env_model = getenv("WHISPERER_MODEL_PATH");
+        const char* env_model = getenv("YAKETY_MODEL_PATH");
         const char* static_paths[] = {
             // App bundle Resources
             "../Resources/models/ggml-base.en.bin",
@@ -255,7 +269,7 @@ void signal_handler(int sig) {
             // Development path from project root
             "whisper.cpp/models/ggml-base.en.bin",
             // Installed path
-            "/Applications/Whisperer.app/Contents/Resources/models/ggml-base.en.bin",
+            "/Applications/Yakety.app/Contents/Resources/models/ggml-base.en.bin",
             NULL
         };
         
@@ -313,7 +327,7 @@ void signal_handler(int sig) {
         
         // Show notification that we're ready (removed deprecated API)
         dispatch_async(dispatch_get_main_queue(), ^{
-            NSLog(@"Whisperer Ready - Hold FN key to record and transcribe speech.");
+            NSLog(@"Yakety Ready - Hold FN key to record and transcribe speech.");
         });
     });
 }
