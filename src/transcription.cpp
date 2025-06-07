@@ -126,6 +126,25 @@ int transcribe_audio(const float* audio_data, int n_samples, char* result, size_
         }
     }
     
+    // Replace double spaces with single spaces
+    char* read = result;
+    char* write = result;
+    bool prev_space = false;
+    
+    while (*read) {
+        if (*read == ' ') {
+            if (!prev_space) {
+                *write++ = *read;
+                prev_space = true;
+            }
+        } else {
+            *write++ = *read;
+            prev_space = false;
+        }
+        read++;
+    }
+    *write = '\0';
+    
     printf("✅ Transcription complete: \"%s\"\n", result);
     return 0;
 }

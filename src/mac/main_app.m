@@ -398,59 +398,60 @@ void signal_handler(int sig) {
             return;
         }
         
-        // Start the keylogger
-        if (start_keylogger() != 0) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                // Create a timer to periodically check for accessibility permission
-                __block NSTimer* checkTimer = nil;
-                
-                void (^checkAccessibility)(void) = ^{
-                    // Try to start keylogger again
-                    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                        if (start_keylogger() == 0) {
-                            // Success! Stop the timer and continue
-                            dispatch_async(dispatch_get_main_queue(), ^{
-                                if (checkTimer) {
-                                    [checkTimer invalidate];
-                                    checkTimer = nil;
-                                }
-                                
-                                // Continue with initialization
-                                NSLog(@"Yakety Ready - Hold FN key to record and transcribe speech.");
-                            });
+        // Start the keylogger - retry until we get permission
+        __block BOOL keyloggerStarted = NO;
+        while (!keyloggerStarted) {
+            if (start_keylogger() == 0) {
+                keyloggerStarted = YES;
+                NSLog(@"✅ Keylogger started successfully");
+            } else {
+                // Need accessibility permission
+                __block BOOL shouldRetry = NO;
+                dispatch_sync(dispatch_get_main_queue(), ^{
+                    NSAlert* alert = [[NSAlert alloc] init];
+                    [alert setMessageText:@"Accessibility Permission Required"];
+                    [alert setInformativeText:@"Yakety needs accessibility permission to monitor the FN key.\n\n1. Grant permission in the system dialog that just appeared\n2. Or click 'Open System Preferences' to grant it manually\n3. Then click 'I've Granted Permission' to continue"];
+                    [alert addButtonWithTitle:@"I've Granted Permission"];
+                    [alert addButtonWithTitle:@"Open System Preferences"];
+                    [alert addButtonWithTitle:@"Quit"];
+                    
+                    NSModalResponse response = [alert runModal];
+                    
+                    if (response == NSAlertFirstButtonReturn) {
+                        // User says they granted permission - retry
+                        shouldRetry = YES;
+                    } else if (response == NSAlertSecondButtonReturn) {
+                        // Open System Preferences
+                        [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"]];
+                        shouldRetry = YES;
+                        
+                        // Show another dialog to wait for user
+                        NSAlert* waitAlert = [[NSAlert alloc] init];
+                        [waitAlert setMessageText:@"Waiting for Permission"];
+                        [waitAlert setInformativeText:@"Please grant accessibility permission in System Preferences, then click Continue."];
+                        [waitAlert addButtonWithTitle:@"Continue"];
+                        [waitAlert addButtonWithTitle:@"Quit"];
+                        
+                        if ([waitAlert runModal] == NSAlertFirstButtonReturn) {
+                            shouldRetry = YES;
+                        } else {
+                            shouldRetry = NO;
+                            [NSApp terminate:nil];
                         }
-                    });
-                };
+                    } else {
+                        // Quit
+                        shouldRetry = NO;
+                        [NSApp terminate:nil];
+                    }
+                });
                 
-                NSAlert* alert = [[NSAlert alloc] init];
-                [alert setMessageText:@"Accessibility Permission Required"];
-                [alert setInformativeText:@"Yakety needs accessibility permission to monitor the FN key.\n\n1. Click 'Open System Preferences'\n2. Add Yakety to the list and check the box\n3. Permission will be detected automatically"];
-                [alert addButtonWithTitle:@"Open System Preferences"];
-                [alert addButtonWithTitle:@"Quit"];
-                
-                // Start checking for permission every second
-                checkTimer = [NSTimer scheduledTimerWithTimeInterval:1.0
-                                                             repeats:YES
-                                                               block:^(NSTimer * _Nonnull timer) {
-                    checkAccessibility();
-                }];
-                
-                NSModalResponse response = [alert runModal];
-                
-                // Stop the timer
-                if (checkTimer) {
-                    [checkTimer invalidate];
-                    checkTimer = nil;
+                if (!shouldRetry) {
+                    return;
                 }
                 
-                if (response == NSAlertFirstButtonReturn) {
-                    // Open System Preferences to Accessibility
-                    [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"]];
-                }
-                
-                [NSApp terminate:nil];
-            });
-            return;
+                // Small delay before retrying
+                usleep(500000); // 500ms
+            }
         }
         
         // Show notification that we're ready (removed deprecated API)
