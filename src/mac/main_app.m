@@ -274,25 +274,12 @@ void signal_handler(int sig) {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSLog(@"Starting background initialization...");
         
-        // Handle audio permissions properly
+        // Check if microphone permission is already denied
         if (@available(macOS 10.14, *)) {
             AVAuthorizationStatus status = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
             
-            if (status == AVAuthorizationStatusNotDetermined) {
-                // Request permission once before miniaudio tries
-                dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
-                [AVCaptureDevice requestAccessForMediaType:AVMediaTypeAudio 
-                                         completionHandler:^(BOOL granted) {
-                    dispatch_semaphore_signal(semaphore);
-                }];
-                dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
-                
-                // Check status again
-                status = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
-            }
-            
             if (status == AVAuthorizationStatusDenied || status == AVAuthorizationStatusRestricted) {
-                // Permission denied - show alert
+                // Permission already denied - show alert
                 dispatch_async(dispatch_get_main_queue(), ^{
                     NSAlert* alert = [[NSAlert alloc] init];
                     [alert setMessageText:@"Microphone Permission Required"];
