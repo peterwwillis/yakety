@@ -53,7 +53,7 @@ LRESULT CALLBACK tray_window_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
                               L"Copyright OpenAI\n"
                               L"License: MIT License\n"
                               L"https://github.com/openai/whisper\n\n"
-                              L"For full license texts, see LICENSES.md in the source repository.", 
+                              L"For full license texts, see LICENSE.md in the application directory.", 
                               L"Open Source Licenses", 
                               MB_OK | MB_ICONINFORMATION);
                     break;

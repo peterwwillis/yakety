@@ -1,5 +1,6 @@
 extern "C" {
 #include "transcription.h"
+#include "platform.h"
 }
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,6 +12,16 @@ extern "C" {
 #include "whisper.h"
 
 static struct whisper_context* ctx = NULL;
+
+int yakety_whisper_init(void) {
+    const char* model_path = platform_find_model_path();
+    if (!model_path) {
+        fprintf(stderr, "ERROR: Could not find Whisper model file\n");
+        fprintf(stderr, "Please ensure ggml-base.en.bin is in the correct location\n");
+        return -1;
+    }
+    return transcription_init(model_path);
+}
 
 int transcription_init(const char* model_path) {
     if (ctx != NULL) {
@@ -297,6 +308,10 @@ int transcribe_file(const char* audio_file, char* result, size_t result_size) {
     return transcribe_audio(audio_data, n_samples, result, result_size);
 }
 
+void yakety_whisper_cleanup(void) {
+    transcription_cleanup();
+}
+
 void transcription_cleanup(void) {
     if (ctx != NULL) {
         printf("🧹 Cleaning up Whisper context\n");
@@ -305,9 +320,22 @@ void transcription_cleanup(void) {
     }
 }
 
+char* whisper_transcribe(const float* audio_data, int n_samples, int sample_rate) {
+    char buffer[2048];
+    if (transcribe_audio(audio_data, n_samples, buffer, sizeof(buffer)) == 0) {
+        return strdup(buffer);
+    }
+    return NULL;
+}
+
 #else // !WHISPER_AVAILABLE
 
 // Stub implementations when whisper.cpp is not available
+
+int yakety_whisper_init(void) {
+    fprintf(stderr, "ERROR: Yakety was built without whisper.cpp support\n");
+    return -1;
+}
 
 int transcription_init(const char* model_path) {
     fprintf(stderr, "ERROR: Yakety was built without whisper.cpp support\n");
@@ -330,8 +358,17 @@ int transcribe_file(const char* audio_file, char* result, size_t result_size) {
     return -1;
 }
 
+void yakety_whisper_cleanup(void) {
+    // Nothing to clean up in stub implementation
+}
+
 void transcription_cleanup(void) {
     // Nothing to clean up in stub implementation
+}
+
+char* whisper_transcribe(const float* audio_data, int n_samples, int sample_rate) {
+    fprintf(stderr, "ERROR: Yakety was built without whisper.cpp support\n");
+    return NULL;
 }
 
 #endif // WHISPER_AVAILABLE

@@ -88,12 +88,26 @@ elseif(WIN32)
     # Windows doesn't need special audio permissions
 endif()
 
+# Common core sources
+set(CORE_SOURCES 
+    src/yakety_core.c
+)
+
+# Platform abstraction sources
+if(APPLE)
+    set(PLATFORM_SOURCES src/mac/platform_mac.m)
+elseif(WIN32)
+    set(PLATFORM_SOURCES src/windows/platform_windows.c)
+endif()
+
 # Source files for yakety CLI
 if(APPLE)
     set(YAKETY_SOURCES
         src/mac/main.m
         src/keylogger.c
         ${AUDIO_SOURCES}
+        ${CORE_SOURCES}
+        ${PLATFORM_SOURCES}
         src/mac/overlay.m
     )
 elseif(WIN32)
@@ -101,6 +115,8 @@ elseif(WIN32)
         src/windows/main.c
         src/windows/keylogger.c
         ${AUDIO_SOURCES}
+        ${CORE_SOURCES}
+        ${PLATFORM_SOURCES}
         src/windows/overlay.c
         src/windows/clipboard.c
     )
@@ -120,7 +136,9 @@ if(WIN32)
         src/windows/keylogger.c
         src/windows/overlay.c
         src/windows/clipboard.c
+        src/windows/platform_windows.c
         src/audio.c
+        src/yakety_core.c
         PROPERTIES LANGUAGE C
     )
 endif()
@@ -131,6 +149,8 @@ if(APPLE)
         src/mac/main_app.m
         src/keylogger.c
         ${AUDIO_SOURCES}
+        ${CORE_SOURCES}
+        ${PLATFORM_SOURCES}
         src/mac/overlay.m
         src/mac/menubar.m
     )
@@ -139,6 +159,8 @@ elseif(WIN32)
         src/windows/main_app.c
         src/windows/keylogger.c
         ${AUDIO_SOURCES}
+        ${CORE_SOURCES}
+        ${PLATFORM_SOURCES}
         src/windows/overlay.c
         src/windows/clipboard.c
         src/windows/menubar.c
@@ -160,7 +182,9 @@ if(WIN32)
         src/windows/overlay.c
         src/windows/clipboard.c
         src/windows/menubar.c
+        src/windows/platform_windows.c
         src/audio.c
+        src/yakety_core.c
         PROPERTIES LANGUAGE C
     )
 endif()
@@ -230,7 +254,7 @@ add_executable(recorder ${RECORDER_SOURCES})
 target_include_directories(recorder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # Create the test transcription executable
-add_executable(test_transcription src/test_transcription.c)
+add_executable(test_transcription src/test_transcription.c ${PLATFORM_SOURCES})
 target_include_directories(test_transcription PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 if(WHISPER_AVAILABLE)
     target_sources(test_transcription PRIVATE src/transcription.cpp)

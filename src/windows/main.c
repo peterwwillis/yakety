@@ -4,27 +4,23 @@
 #include <signal.h>
 #include <stdbool.h>
 #include <string.h>
-#include "../audio.h"
-#include "../transcription.h"
+#include "../yakety_core.h"
+#include "../platform.h"
+#include "../overlay.h"
 
 // Global variables
 static bool g_running = true;
-static AudioRecorder* g_recorder = NULL;
-static void* g_whisper_ctx = NULL;  // Using void* since TranscriptionContext is not defined
+static YaketyCore* g_core = NULL;
 
 // Function prototypes
 int keylogger_init(void);
 void keylogger_cleanup(void);
 bool keylogger_is_fn_pressed(void);
-void clipboard_paste_text(const char* text);
-
-// Include overlay functions
-#include "../overlay.h"
 
 // Console control handler for graceful shutdown
 BOOL WINAPI console_handler(DWORD signal) {
     if (signal == CTRL_C_EVENT || signal == CTRL_BREAK_EVENT) {
-        printf("\nShutting down...\n");
+        platform_console_print("\nShutting down...\n");
         g_running = false;
         return TRUE;
     }
@@ -32,81 +28,80 @@ BOOL WINAPI console_handler(DWORD signal) {
 }
 
 void cleanup() {
-    if (g_recorder) {
-        if (audio_recorder_is_recording(g_recorder)) {
-            audio_recorder_stop(g_recorder);
-        }
-        audio_recorder_destroy(g_recorder);
-        g_recorder = NULL;
+    if (g_core) {
+        yakety_core_cleanup(g_core);
+        g_core = NULL;
     }
-    
-    if (g_whisper_ctx) {
-        transcription_cleanup();
-        g_whisper_ctx = NULL;
-    }
-    
     keylogger_cleanup();
+    overlay_cleanup();
 }
 
-void process_recording() {
-    printf("Processing audio...\n");
+// Callback implementations
+void on_recording_start(void) {
+    platform_console_print("Recording started...\n");
+    overlay_show("Recording");
+}
+
+void on_recording_stop(void) {
+    // Nothing to do here for console version
+}
+
+void on_transcription_start(void) {
+    platform_console_print("Processing audio...\n");
     overlay_show("Transcribing");
+}
+
+void on_transcription_complete(const char* text) {
+    char msg[1100];
+    snprintf(msg, sizeof(msg), "Transcription: %s\n", text);
+    platform_console_print(msg);
     
-    size_t audio_size;
-    const float* audio_data = audio_recorder_get_data(g_recorder, &audio_size);
-    
-    if (!audio_data || audio_size == 0) {
-        printf("No audio data captured\n");
-        overlay_hide();
-        return;
-    }
-    
-    // Transcribe
-    char result[1024];
-    if (transcribe_audio(audio_data, (int)audio_size, result, sizeof(result)) == 0) {
-        if (strlen(result) > 0) {
-            printf("Transcription: %s\n", result);
-            clipboard_paste_text(result);
-        } else {
-            printf("No transcription result\n");
-        }
-    } else {
-        printf("Transcription failed\n");
-    }
+    platform_copy_to_clipboard(text);
+    platform_paste_text();
+    overlay_hide();
+}
+
+void on_transcription_error(const char* error) {
+    char msg[256];
+    snprintf(msg, sizeof(msg), "Transcription error: %s\n", error);
+    platform_console_print(msg);
+    overlay_hide();
+}
+
+void on_transcription_empty(void) {
+    platform_console_print("No transcription result\n");
     overlay_hide();
 }
 
 int main(int argc, char* argv[]) {
-    printf("Yakety - Hold Right Ctrl key to record and transcribe speech\n");
-    printf("Note: Using Right Ctrl instead of FN key on Windows\n");
+    // Initialize console
+    platform_console_init();
+    
+    platform_console_print("Yakety - Hold Right Ctrl key to record and transcribe speech\n");
+    platform_console_print("Note: Using Right Ctrl instead of FN key on Windows\n");
     
     // Set up console control handler
     SetConsoleCtrlHandler(console_handler, TRUE);
     
-    // Request audio permissions (no-op on Windows)
-    if (audio_request_permissions() != 0) {
-        fprintf(stderr, "Failed to get audio permissions\n");
+    // Initialize platform
+    if (platform_init() != 0) {
+        fprintf(stderr, "Failed to initialize platform\n");
         return 1;
     }
     
-    // Initialize whisper
-    printf("Loading Whisper model...\n");
-    if (transcription_init("models/ggml-base.en.bin") != 0) {
-        fprintf(stderr, "Failed to initialize Whisper\n");
-        fprintf(stderr, "Model file not found: models/ggml-base.en.bin\n");
-        fprintf(stderr, "Please ensure the model file is in the 'models' directory next to the executable.\n");
-        return 1;
-    }
-    g_whisper_ctx = (void*)1;  // Non-null to indicate initialized
-    printf("Whisper model loaded successfully\n");
+    // Initialize overlay
+    overlay_init();
     
-    // Create audio recorder
-    g_recorder = audio_recorder_create(&WHISPER_AUDIO_CONFIG);
-    if (!g_recorder) {
-        fprintf(stderr, "Failed to create audio recorder\n");
+    // Initialize core
+    platform_console_print("Loading Whisper model...\n");
+    g_core = yakety_core_init();
+    if (!g_core) {
+        fprintf(stderr, "Failed to initialize Yakety core\n");
+        fprintf(stderr, "Please ensure the model file is in the correct location.\n");
         cleanup();
         return 1;
     }
+    platform_console_print("Whisper model loaded successfully\n");
     
     // Initialize keylogger
     if (keylogger_init() != 0) {
@@ -116,9 +111,17 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
-    printf("Ready! Hold Right Ctrl to record.\n");
+    platform_console_print("Ready! Hold Right Ctrl to record.\n");
     
-    bool was_recording = false;
+    // Set up callbacks
+    YaketyCallbacks callbacks = {
+        .on_recording_start = on_recording_start,
+        .on_recording_stop = on_recording_stop,
+        .on_transcription_start = on_transcription_start,
+        .on_transcription_complete = on_transcription_complete,
+        .on_transcription_error = on_transcription_error,
+        .on_transcription_empty = on_transcription_empty
+    };
     
     // Main loop
     MSG msg;
@@ -134,32 +137,12 @@ int main(int argc, char* argv[]) {
         }
         
         bool is_key_pressed = keylogger_is_fn_pressed();
-        
-        if (is_key_pressed && !was_recording) {
-            // Start recording
-            printf("Recording started...\n");
-            overlay_show("Recording");
-            audio_recorder_start_buffer(g_recorder);
-            was_recording = true;
-        } else if (!is_key_pressed && was_recording) {
-            // Stop recording and process
-            audio_recorder_stop(g_recorder);
-            double duration = audio_recorder_get_duration(g_recorder);
-            printf("Recording stopped. Duration: %.2f seconds\n", duration);
-            was_recording = false;
-            
-            if (duration > 0.1) {  // Process only if recording is long enough
-                process_recording();
-            } else {
-                printf("Recording too short, ignoring\n");
-                overlay_hide();
-            }
-        }
+        yakety_core_update(g_core, is_key_pressed, &callbacks);
         
         Sleep(10);  // Small delay to prevent high CPU usage
     }
     
     cleanup();
-    printf("Goodbye!\n");
+    platform_console_print("Goodbye!\n");
     return 0;
 }
