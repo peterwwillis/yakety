@@ -66,16 +66,14 @@ void process_recording() {
     if (transcribe_audio(audio_data, (int)audio_size, result, sizeof(result)) == 0) {
         if (strlen(result) > 0) {
             printf("Transcription: %s\n", result);
-            overlay_show_result(result);
             clipboard_paste_text(result);
         } else {
             printf("No transcription result\n");
-            overlay_hide();
         }
     } else {
         printf("Transcription failed\n");
-        overlay_hide();
     }
+    overlay_hide();
 }
 
 int main(int argc, char* argv[]) {

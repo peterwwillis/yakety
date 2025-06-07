@@ -4,8 +4,8 @@
 #include "../overlay.h"
 
 #define OVERLAY_CLASS_NAME L"YaketyOverlay"
-#define OVERLAY_WIDTH 300
-#define OVERLAY_HEIGHT 100
+#define OVERLAY_WIDTH 180
+#define OVERLAY_HEIGHT 40
 
 static HWND g_overlay_window = NULL;
 static HINSTANCE g_instance = NULL;
@@ -35,7 +35,7 @@ LRESULT CALLBACK overlay_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             SetBkMode(hdc, TRANSPARENT);
             SetTextColor(hdc, g_text_color);
             
-            HFONT font = CreateFontW(24, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            HFONT font = CreateFontW(16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                   DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                   CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial");
             HFONT oldFont = (HFONT)SelectObject(hdc, font);
@@ -50,12 +50,6 @@ LRESULT CALLBACK overlay_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             return 0;
         }
         
-        case WM_TIMER:
-            if (wParam == 1) {
-                overlay_hide();
-            }
-            return 0;
-            
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;
@@ -85,9 +79,9 @@ static void create_overlay_window() {
     int screenWidth = GetSystemMetrics(SM_CXSCREEN);
     int screenHeight = GetSystemMetrics(SM_CYSCREEN);
     
-    // Calculate position (bottom center)
+    // Calculate position (bottom center, like macOS)
     int x = (screenWidth - OVERLAY_WIDTH) / 2;
-    int y = screenHeight - OVERLAY_HEIGHT - 100;
+    int y = 30;  // 30 pixels from bottom
     
     // Create window
     g_overlay_window = CreateWindowExW(
@@ -133,29 +127,9 @@ void overlay_show(const char* text) {
     UpdateWindow(g_overlay_window);
 }
 
-void overlay_show_result(const char* text) {
-    create_overlay_window();
-    if (!g_overlay_window) return;
-    
-    // Convert text to wide string
-    wchar_t wtext[256];
-    MultiByteToWideChar(CP_UTF8, 0, text, -1, wtext, 256);
-    
-    wcscpy_s(g_display_text, 256, wtext);
-    g_bg_color = RGB(0, 100, 0);  // Green background for results
-    g_text_color = RGB(255, 255, 255);
-    
-    InvalidateRect(g_overlay_window, NULL, TRUE);
-    ShowWindow(g_overlay_window, SW_SHOWNOACTIVATE);
-    UpdateWindow(g_overlay_window);
-    
-    // Auto-hide after 3 seconds
-    SetTimer(g_overlay_window, 1, 3000, NULL);
-}
 
 void overlay_hide(void) {
     if (g_overlay_window) {
         ShowWindow(g_overlay_window, SW_HIDE);
-        KillTimer(g_overlay_window, 1);
     }
 }

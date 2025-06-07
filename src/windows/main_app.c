@@ -54,14 +54,10 @@ void process_recording() {
     char result[1024];
     if (transcribe_audio(audio_data, (int)audio_size, result, sizeof(result)) == 0) {
         if (strlen(result) > 0) {
-            overlay_show_result(result);
             clipboard_paste_text(result);
-        } else {
-            overlay_hide();
         }
-    } else {
-        overlay_hide();
     }
+    overlay_hide();
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
