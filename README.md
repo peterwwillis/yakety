@@ -1,6 +1,6 @@
 # Whisperer - FN Key Audio Transcription
 
-Simple macOS app: Hold FN key → record audio → transcribe with local Whisper → paste text
+Cross-platform app: Hold FN key → record audio → transcribe with local Whisper → paste text
 
 ## Quick Start
 
@@ -68,7 +68,8 @@ Standalone audio recording utility with flexible configuration.
 
 - **CMake** with **Ninja** generator for fast builds
 - **Pure C** implementation with minimal Objective-C for macOS APIs
-- **Framework linking**: ApplicationServices, AVFoundation, AppKit, CoreFoundation
+- **Framework linking**: ApplicationServices, AppKit, CoreFoundation, CoreAudio (macOS)
+- **Cross-platform audio**: miniaudio library for Windows/Linux/macOS support
 
 ```bash
 # Clean rebuild
@@ -82,7 +83,7 @@ ninja
 
 ## Audio Recording Module
 
-Reusable C API in `src/audio.h` and `src/audio.m`:
+Reusable C API in `src/audio.h` and `src/audio_miniaudio.c`:
 
 ```c
 // Create recorder with configuration
@@ -110,7 +111,7 @@ audio_recorder_destroy(recorder);
 
 ## Requirements
 
-- **macOS** (uses macOS-specific frameworks)
+- **macOS/Windows/Linux** (cross-platform with miniaudio)
 - **Xcode Command Line Tools** (`xcode-select --install`)
 - **CMake** (`brew install cmake`)
 - **Ninja** (`brew install ninja`)
@@ -172,7 +173,9 @@ whisperer/
 │   ├── main.c          # Main whisperer application
 │   ├── keylogger.c     # FN key detection and handling
 │   ├── audio.h         # Audio recording API
-│   ├── audio.m         # AVAudioEngine implementation
+│   ├── audio_miniaudio.c  # miniaudio implementation
+│   ├── audio_permissions_macos.m  # macOS permissions
+│   ├── miniaudio.h     # miniaudio library header
 │   └── Recorder.c      # Standalone recording utility
 ├── CMakeLists.txt      # Build configuration
 ├── build.sh            # Build script
@@ -211,7 +214,8 @@ rm -rf build && ./build.sh
 
 - **Pure C** core with minimal Objective-C for system APIs
 - **Single binary** output with no runtime dependencies
-- **reusable audio module** supports both file and buffer recording
+- **Cross-platform audio** via miniaudio library
+- **Reusable audio module** supports both file and buffer recording
 - **CMake + Ninja** for fast incremental builds
 - **Metal-optimized** whisper.cpp integration (planned)
 

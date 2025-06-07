@@ -22,3 +22,9 @@ whisper.cpp/
 
 # Logs
 *.log
+
+# Test audio files
+test_*.wav
+*.wav
+*.mp3
+*.m4a
