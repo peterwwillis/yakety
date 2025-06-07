@@ -8,6 +8,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Platform-specific settings
 if(APPLE)
+    # Build universal binary for both Intel and Apple Silicon
+    set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "Build for both architectures" FORCE)
+    
     # Find required frameworks for macOS
     find_library(APPLICATION_SERVICES_FRAMEWORK ApplicationServices)
     find_library(APPKIT_FRAMEWORK AppKit)
@@ -101,6 +104,10 @@ elseif(WIN32)
         src/windows/overlay.c
         src/windows/clipboard.c
     )
+    # Add Windows resource file if it exists
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/windows/yakety.rc")
+        list(APPEND YAKETY_SOURCES src/windows/yakety.rc)
+    endif()
 endif()
 
 # Add transcription sources
@@ -136,6 +143,10 @@ elseif(WIN32)
         src/windows/clipboard.c
         src/windows/menubar.c
     )
+    # Add Windows resource file if it exists
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/windows/yakety.rc")
+        list(APPEND YAKETY_APP_SOURCES src/windows/yakety.rc)
+    endif()
 endif()
 
 # Add transcription sources

@@ -99,55 +99,32 @@ static void create_overlay_window() {
     }
 }
 
-void overlay_show_recording(void) {
+void overlay_init(void) {
+    // Create overlay window on first use
+}
+
+void overlay_cleanup(void) {
+    if (g_overlay_window) {
+        DestroyWindow(g_overlay_window);
+        g_overlay_window = NULL;
+    }
+}
+
+void overlay_show(const char* text) {
     create_overlay_window();
-    if (!g_overlay_window) return;
-    
-    wcscpy_s(g_display_text, 256, L"🔴 Recording...");
-    g_bg_color = RGB(200, 50, 50);
-    g_text_color = RGB(255, 255, 255);
-    
-    InvalidateRect(g_overlay_window, NULL, TRUE);
-    ShowWindow(g_overlay_window, SW_SHOWNOACTIVATE);
-    UpdateWindow(g_overlay_window);
-}
-
-void overlay_show_processing(void) {
-    if (!g_overlay_window) return;
-    
-    wcscpy_s(g_display_text, 256, L"⚙️ Processing...");
-    g_bg_color = RGB(50, 50, 200);
-    g_text_color = RGB(255, 255, 255);
-    
-    InvalidateRect(g_overlay_window, NULL, TRUE);
-    UpdateWindow(g_overlay_window);
-}
-
-void overlay_show_result(const char* text) {
     if (!g_overlay_window) return;
     
     // Convert text to wide string
     wchar_t wtext[256];
     MultiByteToWideChar(CP_UTF8, 0, text, -1, wtext, 256);
     
-    // Truncate if too long
-    if (wcslen(wtext) > 30) {
-        wtext[27] = L'.';
-        wtext[28] = L'.';
-        wtext[29] = L'.';
-        wtext[30] = L'\0';
-    }
-    
     wcscpy_s(g_display_text, 256, wtext);
-    g_bg_color = RGB(50, 200, 50);
+    g_bg_color = RGB(40, 40, 40);
     g_text_color = RGB(255, 255, 255);
     
     InvalidateRect(g_overlay_window, NULL, TRUE);
+    ShowWindow(g_overlay_window, SW_SHOWNOACTIVATE);
     UpdateWindow(g_overlay_window);
-    
-    // Hide after 2 seconds
-    Sleep(2000);
-    overlay_hide();
 }
 
 void overlay_hide(void) {

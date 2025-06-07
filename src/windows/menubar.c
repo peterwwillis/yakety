@@ -97,8 +97,14 @@ int menubar_init(void) {
     g_tray_icon.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     g_tray_icon.uCallbackMessage = WM_TRAYICON;
     
-    // Load default application icon
-    g_tray_icon.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+    // Load application icon from resources
+    HINSTANCE hInstance = GetModuleHandle(NULL);
+    g_tray_icon.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(1));
+    
+    // Fallback to default if custom icon not found
+    if (!g_tray_icon.hIcon) {
+        g_tray_icon.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+    }
     
     wcscpy_s(g_tray_icon.szTip, 128, L"Yakety - Right Ctrl to record");
     

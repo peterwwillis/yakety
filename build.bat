@@ -1,6 +1,18 @@
 @echo off
 echo Building Yakety for Windows...
 
+:: Generate Windows icon from SVG if ImageMagick is available
+where magick >nul 2>nul
+if %errorlevel%==0 (
+    echo Generating Windows icon from SVG...
+    if not exist "assets\yakety.ico" (
+        magick convert assets\yakety.svg -define icon:auto-resize=256,128,64,48,32,16 assets\yakety.ico
+        echo Icon generated: assets\yakety.ico
+    )
+) else (
+    echo Note: ImageMagick not found. Using default icon.
+)
+
 :: Check if cmake is available
 where cmake >nul 2>nul
 if %errorlevel% neq 0 (

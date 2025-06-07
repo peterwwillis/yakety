@@ -29,8 +29,8 @@ cd whisper.cpp
 mkdir -p build
 cd build
 
-# Configure whisper.cpp with Metal support and static libraries
-cmake -G Ninja .. -DGGML_METAL=1 -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release
+# Configure whisper.cpp with Metal support and static libraries (universal binary)
+cmake -G Ninja .. -DGGML_METAL=1 -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
 
 # Build whisper.cpp
 ninja

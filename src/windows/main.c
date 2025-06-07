@@ -49,7 +49,7 @@ void cleanup() {
 
 void process_recording() {
     printf("Processing audio...\n");
-    overlay_show_processing();
+    overlay_show("Transcribing");
     
     size_t audio_size;
     const float* audio_data = audio_recorder_get_data(g_recorder, &audio_size);
@@ -139,7 +139,7 @@ int main(int argc, char* argv[]) {
         if (is_key_pressed && !was_recording) {
             // Start recording
             printf("Recording started...\n");
-            overlay_show_recording();
+            overlay_show("Recording");
             audio_recorder_start_buffer(g_recorder);
             was_recording = true;
         } else if (!is_key_pressed && was_recording) {

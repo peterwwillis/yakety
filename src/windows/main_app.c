@@ -40,7 +40,7 @@ void cleanup() {
 }
 
 void process_recording() {
-    overlay_show_processing();
+    overlay_show("Transcribing");
     
     size_t audio_size;
     const float* audio_data = audio_recorder_get_data(g_recorder, &audio_size);
@@ -123,7 +123,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         
         if (is_key_pressed && !was_recording) {
             // Start recording
-            overlay_show_recording();
+            overlay_show("Recording");
             audio_recorder_start_buffer(g_recorder);
             was_recording = true;
         } else if (!is_key_pressed && was_recording) {
