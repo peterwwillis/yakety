@@ -140,12 +140,15 @@ if(WIN32)
 else()
     add_executable(whisperer-app ${WHISPERER_APP_SOURCES})
 endif()
+target_include_directories(whisperer-app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # Create the recorder executable
 add_executable(recorder ${RECORDER_SOURCES})
+target_include_directories(recorder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # Create the test transcription executable
 add_executable(test_transcription src/test_transcription.c)
+target_include_directories(test_transcription PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 if(WHISPER_AVAILABLE)
     target_sources(test_transcription PRIVATE src/transcription.cpp)
     target_include_directories(test_transcription PRIVATE ${WHISPER_DIR})
