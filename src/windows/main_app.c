@@ -106,13 +106,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     
     // Main message loop
     MSG msg;
-    while (GetMessage(&msg, NULL, 0, 0)) {
-        if (msg.message == WM_QUIT) {
-            break;
+    while (g_running) {
+        // Process Windows messages
+        while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+            if (msg.message == WM_QUIT) {
+                g_running = false;
+                break;
+            }
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
         }
-        
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
         
         // Check key state
         bool is_key_pressed = keylogger_is_fn_pressed();
@@ -134,6 +137,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                 overlay_hide();
             }
         }
+        
+        Sleep(10);  // Small delay to prevent high CPU usage
     }
     
     cleanup();
