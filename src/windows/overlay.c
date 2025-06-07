@@ -94,8 +94,8 @@ static void create_overlay_window() {
     );
     
     if (g_overlay_window) {
-        // Set transparency to match macOS (75% opacity = 192/255)
-        SetLayeredWindowAttributes(g_overlay_window, 0, 192, LWA_ALPHA);
+        // Make window fully opaque for solid black background
+        SetLayeredWindowAttributes(g_overlay_window, 0, 255, LWA_ALPHA);
     }
 }
 
