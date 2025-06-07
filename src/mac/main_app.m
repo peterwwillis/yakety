@@ -336,9 +336,15 @@ void signal_handler(int sig) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 NSAlert* alert = [[NSAlert alloc] init];
                 [alert setMessageText:@"Accessibility Permission Required"];
-                [alert setInformativeText:@"Please grant accessibility permission in System Preferences → Security & Privacy → Privacy → Accessibility."];
+                [alert setInformativeText:@"Please grant accessibility permission in System Preferences → Security & Privacy → Privacy → Accessibility.\n\nAfter granting permission, please restart Yakety."];
+                [alert addButtonWithTitle:@"Open System Preferences"];
                 [alert addButtonWithTitle:@"Quit"];
-                [alert runModal];
+                
+                NSModalResponse response = [alert runModal];
+                if (response == NSAlertFirstButtonReturn) {
+                    // Open System Preferences to Accessibility
+                    [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"]];
+                }
                 [NSApp terminate:nil];
             });
             return;
