@@ -15,11 +15,10 @@ static void* g_whisper_ctx = NULL;  // Using void* since TranscriptionContext is
 int keylogger_init(void);
 void keylogger_cleanup(void);
 bool keylogger_is_fn_pressed(void);
-void overlay_show_recording(void);
-void overlay_show_processing(void);
-void overlay_show_result(const char* text);
-void overlay_hide(void);
 void clipboard_paste_text(const char* text);
+
+// Include overlay functions
+#include "windows/overlay.h"
 
 // Console control handler for graceful shutdown
 BOOL WINAPI console_handler(DWORD signal) {
@@ -93,9 +92,10 @@ int main(int argc, char* argv[]) {
     
     // Initialize whisper
     printf("Loading Whisper model...\n");
-    if (transcription_init("whisper.cpp/models/ggml-base.en.bin") != 0) {
+    if (transcription_init("models/ggml-base.en.bin") != 0) {
         fprintf(stderr, "Failed to initialize Whisper\n");
-        fprintf(stderr, "Note: This may be a cross-compiled build without whisper.cpp support\n");
+        fprintf(stderr, "Model file not found: models/ggml-base.en.bin\n");
+        fprintf(stderr, "Please ensure the model file is in the 'models' directory next to the executable.\n");
         return 1;
     }
     g_whisper_ctx = (void*)1;  // Non-null to indicate initialized

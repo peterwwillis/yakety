@@ -68,27 +68,13 @@ else()
     set(WHISPER_BUILD_DIR "${WHISPER_DIR}/build")
 endif()
 
-# Check for appropriate library file based on platform
-if(WIN32 OR (CMAKE_CROSSCOMPILING AND CMAKE_SYSTEM_NAME STREQUAL "Windows"))
-    set(WHISPER_LIB_FILE "${WHISPER_BUILD_DIR}/src/whisper.lib")
-    if(NOT EXISTS "${WHISPER_LIB_FILE}")
-        set(WHISPER_LIB_FILE "${WHISPER_BUILD_DIR}/src/libwhisper.a")
-    endif()
-else()
-    set(WHISPER_LIB_FILE "${WHISPER_BUILD_DIR}/src/libwhisper.a")
-endif()
-
-if(EXISTS "${WHISPER_LIB_FILE}")
-    message(STATUS "Found whisper.cpp library at ${WHISPER_LIB_FILE}")
+# Check if whisper.cpp directory exists
+if(EXISTS "${WHISPER_DIR}/CMakeLists.txt")
+    message(STATUS "Found whisper.cpp at ${WHISPER_DIR}")
     set(WHISPER_AVAILABLE TRUE)
 else()
-    if(CMAKE_CROSSCOMPILING)
-        message(WARNING "whisper.cpp library not found for cross-compilation. Building without transcription support.")
-        set(WHISPER_AVAILABLE FALSE)
-    else()
-        message(WARNING "whisper.cpp library not found. Run ./build.sh to build whisper.cpp first.")
-        set(WHISPER_AVAILABLE FALSE)
-    endif()
+    message(WARNING "whisper.cpp not found. Clone it first or build without transcription support.")
+    set(WHISPER_AVAILABLE FALSE)
 endif()
 
 # Common audio sources
@@ -120,6 +106,18 @@ endif()
 # Add transcription sources
 list(APPEND YAKETY_SOURCES src/transcription.cpp)
 
+# Ensure C files are compiled as C on Windows
+if(WIN32)
+    set_source_files_properties(
+        src/windows/main.c
+        src/windows/keylogger.c
+        src/windows/overlay.c
+        src/windows/clipboard.c
+        src/audio.c
+        PROPERTIES LANGUAGE C
+    )
+endif()
+
 # Source files for yakety app
 if(APPLE)
     set(YAKETY_APP_SOURCES
@@ -142,6 +140,19 @@ endif()
 
 # Add transcription sources
 list(APPEND YAKETY_APP_SOURCES src/transcription.cpp)
+
+# Ensure C files are compiled as C on Windows for app target
+if(WIN32)
+    set_source_files_properties(
+        src/windows/main_app.c
+        src/windows/keylogger.c
+        src/windows/overlay.c
+        src/windows/clipboard.c
+        src/windows/menubar.c
+        src/audio.c
+        PROPERTIES LANGUAGE C
+    )
+endif()
 
 # Source files for recorder
 set(RECORDER_SOURCES
@@ -173,6 +184,7 @@ elseif(APPLE)
     set(ICON_FILE "${CMAKE_CURRENT_SOURCE_DIR}/assets/yakety.icns")
     set(MENUBAR_ICON "${CMAKE_CURRENT_SOURCE_DIR}/assets/generated/menubar.png")
     set(MENUBAR_ICON_2X "${CMAKE_CURRENT_SOURCE_DIR}/assets/generated/menubar@2x.png")
+    set(WHISPER_MODEL "${CMAKE_CURRENT_SOURCE_DIR}/whisper.cpp/models/ggml-base.en.bin")
     
     if(EXISTS ${ICON_FILE})
         set_source_files_properties(${ICON_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
@@ -188,6 +200,15 @@ elseif(APPLE)
         set_source_files_properties(${MENUBAR_ICON_2X} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
         target_sources(yakety-app PRIVATE ${MENUBAR_ICON_2X})
     endif()
+    
+    # Copy Whisper model to bundle
+    if(EXISTS ${WHISPER_MODEL})
+        set_source_files_properties(${WHISPER_MODEL} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/models")
+        target_sources(yakety-app PRIVATE ${WHISPER_MODEL})
+        message(STATUS "Including Whisper model in app bundle")
+    else()
+        message(WARNING "Whisper model not found at ${WHISPER_MODEL}")
+    endif()
 else()
     add_executable(yakety-app ${YAKETY_APP_SOURCES})
 endif()
@@ -202,7 +223,6 @@ add_executable(test_transcription src/test_transcription.c)
 target_include_directories(test_transcription PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 if(WHISPER_AVAILABLE)
     target_sources(test_transcription PRIVATE src/transcription.cpp)
-    target_include_directories(test_transcription PRIVATE ${WHISPER_DIR})
     target_compile_definitions(test_transcription PRIVATE WHISPER_AVAILABLE)
 endif()
 
@@ -242,14 +262,82 @@ endif()
 
 # Add whisper.cpp only if available
 if(WHISPER_AVAILABLE)
-    # Add whisper.cpp build directory to find the whisper target
-    add_subdirectory(${WHISPER_DIR} ${WHISPER_BUILD_DIR} EXCLUDE_FROM_ALL)
+    # Use pre-built static libraries approach for all platforms
+    # This avoids issues with whisper.cpp's CMake overriding our settings
     
-    target_include_directories(yakety PRIVATE ${WHISPER_DIR})
-    target_link_libraries(yakety whisper)
+    # Find the static libraries
+    if(WIN32)
+        # Windows uses Release/Debug subdirectories
+        find_library(WHISPER_LIBRARY
+            NAMES whisper
+            PATHS ${WHISPER_BUILD_DIR}/src/Release ${WHISPER_BUILD_DIR}/src
+            NO_DEFAULT_PATH
+        )
+        find_library(GGML_LIBRARY
+            NAMES ggml
+            PATHS ${WHISPER_BUILD_DIR}/ggml/src/Release ${WHISPER_BUILD_DIR}/ggml/src
+            NO_DEFAULT_PATH
+        )
+        find_library(GGML_BASE_LIBRARY
+            NAMES ggml-base
+            PATHS ${WHISPER_BUILD_DIR}/ggml/src/Release ${WHISPER_BUILD_DIR}/ggml/src
+            NO_DEFAULT_PATH
+        )
+        find_library(GGML_CPU_LIBRARY
+            NAMES ggml-cpu
+            PATHS ${WHISPER_BUILD_DIR}/ggml/src/Release ${WHISPER_BUILD_DIR}/ggml/src
+            NO_DEFAULT_PATH
+        )
+    else()
+        # macOS/Linux don't use Release subdirectory
+        find_library(WHISPER_LIBRARY
+            NAMES whisper
+            PATHS ${WHISPER_BUILD_DIR}/src
+            NO_DEFAULT_PATH
+        )
+        find_library(GGML_LIBRARY
+            NAMES ggml
+            PATHS ${WHISPER_BUILD_DIR}/ggml/src
+            NO_DEFAULT_PATH
+        )
+        find_library(GGML_BASE_LIBRARY
+            NAMES ggml-base
+            PATHS ${WHISPER_BUILD_DIR}/ggml/src
+            NO_DEFAULT_PATH
+        )
+        find_library(GGML_CPU_LIBRARY
+            NAMES ggml-cpu
+            PATHS ${WHISPER_BUILD_DIR}/ggml/src
+            NO_DEFAULT_PATH
+        )
+        
+        # On macOS, also look for Metal library
+        if(APPLE)
+            find_library(GGML_METAL_LIBRARY
+                NAMES ggml-metal
+                PATHS ${WHISPER_BUILD_DIR}/ggml/src/ggml-metal
+                NO_DEFAULT_PATH
+            )
+        endif()
+    endif()
     
-    target_include_directories(yakety-app PRIVATE ${WHISPER_DIR})
-    target_link_libraries(yakety-app whisper)
+    # Create imported targets
+    add_library(whisper STATIC IMPORTED)
+    set_target_properties(whisper PROPERTIES
+        IMPORTED_LOCATION ${WHISPER_LIBRARY}
+        INTERFACE_INCLUDE_DIRECTORIES "${WHISPER_DIR};${WHISPER_DIR}/include"
+    )
+    
+    # Link the libraries
+    set(WHISPER_LIBS ${WHISPER_LIBRARY} ${GGML_LIBRARY} ${GGML_CPU_LIBRARY} ${GGML_BASE_LIBRARY})
+    if(APPLE AND GGML_METAL_LIBRARY)
+        list(APPEND WHISPER_LIBS ${GGML_METAL_LIBRARY})
+    endif()
+    
+    target_link_libraries(yakety ${WHISPER_LIBS})
+    target_link_libraries(yakety-app ${WHISPER_LIBS})
+    target_include_directories(yakety PRIVATE ${WHISPER_DIR} ${WHISPER_DIR}/include ${WHISPER_DIR}/ggml/include)
+    target_include_directories(yakety-app PRIVATE ${WHISPER_DIR} ${WHISPER_DIR}/include ${WHISPER_DIR}/ggml/include)
     
     # Add compile definition to enable whisper code
     target_compile_definitions(yakety PRIVATE WHISPER_AVAILABLE)
@@ -301,7 +389,8 @@ endif()
 
 # Link whisper.cpp to test_transcription if available
 if(WHISPER_AVAILABLE)
-    target_link_libraries(test_transcription whisper)
+    target_link_libraries(test_transcription ${WHISPER_LIBS})
+    target_include_directories(test_transcription PRIVATE ${WHISPER_DIR} ${WHISPER_DIR}/include ${WHISPER_DIR}/ggml/include)
     
     # Link Metal frameworks for test_transcription
     if(METAL_FRAMEWORK AND METALKIT_FRAMEWORK AND METALPERFORMANCE_FRAMEWORK)
@@ -313,32 +402,54 @@ if(WHISPER_AVAILABLE)
     endif()
 endif()
 
-# Set output directory for all executables
+# Set output directory for all executables and DLLs to the same location
 set_target_properties(yakety yakety-app recorder test_transcription PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin
 )
 
-# Compiler flags for macOS
-target_compile_options(yakety PRIVATE
-    -Wall
-    -Wextra
-    -Werror
-    -Wno-error=unused-parameter
-    -Wno-error=unused-function
-)
+# Copy whisper model to output directory if it exists
+set(MODEL_FILE "${WHISPER_DIR}/models/ggml-base.en.bin")
+if(EXISTS ${MODEL_FILE})
+    # Create models directory in output
+    add_custom_command(TARGET yakety POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:yakety>/models"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${MODEL_FILE}" "$<TARGET_FILE_DIR:yakety>/models/ggml-base.en.bin"
+        COMMENT "Copying Whisper model to output directory"
+    )
+    add_custom_command(TARGET yakety-app POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:yakety-app>/models"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${MODEL_FILE}" "$<TARGET_FILE_DIR:yakety-app>/models/ggml-base.en.bin"
+        COMMENT "Copying Whisper model to output directory"
+    )
+else()
+    message(WARNING "Whisper model not found at ${MODEL_FILE}")
+endif()
 
-target_compile_options(yakety-app PRIVATE
-    -Wall
-    -Wextra
-    -Werror
-    -Wno-error=unused-parameter
-    -Wno-error=unused-function
-)
+# Compiler flags
+if(NOT WIN32)
+    target_compile_options(yakety PRIVATE
+        -Wall
+        -Wextra
+        -Werror
+        -Wno-error=unused-parameter
+        -Wno-error=unused-function
+    )
 
-target_compile_options(recorder PRIVATE
-    -Wall
-    -Wextra
-    -Werror
-    -Wno-error=unused-parameter
-    -Wno-error=unused-function
-)
+    target_compile_options(yakety-app PRIVATE
+        -Wall
+        -Wextra
+        -Werror
+        -Wno-error=unused-parameter
+        -Wno-error=unused-function
+    )
+
+    target_compile_options(recorder PRIVATE
+        -Wall
+        -Wextra
+        -Werror
+        -Wno-error=unused-parameter
+        -Wno-error=unused-function
+    )
+endif()

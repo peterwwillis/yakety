@@ -9,13 +9,12 @@
 int keylogger_init(void);
 void keylogger_cleanup(void);
 bool keylogger_is_fn_pressed(void);
-void overlay_show_recording(void);
-void overlay_show_processing(void);
-void overlay_show_result(const char* text);
-void overlay_hide(void);
 void clipboard_paste_text(const char* text);
 int menubar_init(void);
 void menubar_cleanup(void);
+
+// Include overlay functions
+#include "windows/overlay.h"
 
 // Global variables
 static bool g_running = true;
@@ -71,20 +70,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     
     // Initialize system tray
     if (menubar_init() != 0) {
-        MessageBox(NULL, L"Failed to create system tray icon", L"Error", MB_OK | MB_ICONERROR);
+        MessageBoxW(NULL, L"Failed to create system tray icon", L"Error", MB_OK | MB_ICONERROR);
         return 1;
     }
     
     // Request audio permissions (no-op on Windows)
     if (audio_request_permissions() != 0) {
-        MessageBox(NULL, L"Failed to get audio permissions", L"Error", MB_OK | MB_ICONERROR);
+        MessageBoxW(NULL, L"Failed to get audio permissions", L"Error", MB_OK | MB_ICONERROR);
         cleanup();
         return 1;
     }
     
     // Initialize whisper
-    if (transcription_init("whisper.cpp/models/ggml-base.en.bin") != 0) {
-        MessageBox(NULL, L"Failed to load Whisper model\nNote: This may be a cross-compiled build without whisper.cpp support", L"Error", MB_OK | MB_ICONERROR);
+    if (transcription_init("models/ggml-base.en.bin") != 0) {
+        MessageBoxW(NULL, L"Failed to load Whisper model\nPlease ensure the model file is in the 'models' directory next to the executable.", L"Error", MB_OK | MB_ICONERROR);
         cleanup();
         return 1;
     }
@@ -93,14 +92,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // Create audio recorder
     g_recorder = audio_recorder_create(&WHISPER_AUDIO_CONFIG);
     if (!g_recorder) {
-        MessageBox(NULL, L"Failed to create audio recorder", L"Error", MB_OK | MB_ICONERROR);
+        MessageBoxW(NULL, L"Failed to create audio recorder", L"Error", MB_OK | MB_ICONERROR);
         cleanup();
         return 1;
     }
     
     // Initialize keylogger
     if (keylogger_init() != 0) {
-        MessageBox(NULL, 
+        MessageBoxW(NULL, 
                  L"Failed to initialize keyboard monitoring.\nMake sure to run as administrator.", 
                  L"Error", MB_OK | MB_ICONERROR);
         cleanup();
