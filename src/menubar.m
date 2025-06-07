@@ -29,39 +29,50 @@ static NSStatusItem* statusItem = nil;
 static MenuBarDelegate* menuDelegate = nil;
 
 void menubar_init(void) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        @autoreleasepool {
-            // Create status bar item
-            statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSSquareStatusItemLength];
-            
-            // Set icon - using system microphone icon
-            NSImage* icon = [NSImage imageNamed:NSImageNameTouchBarRecordStartTemplate];
-            [icon setSize:NSMakeSize(16, 16)];
-            statusItem.button.image = icon;
-            
-            // Create menu
-            NSMenu* menu = [[NSMenu alloc] init];
-            
-            // Add menu items
-            menuDelegate = [[MenuBarDelegate alloc] init];
-            
-            NSMenuItem* aboutItem = [[NSMenuItem alloc] initWithTitle:@"About Whisperer" 
-                                                              action:@selector(about:) 
-                                                       keyEquivalent:@""];
-            [aboutItem setTarget:menuDelegate];
-            [menu addItem:aboutItem];
-            
-            [menu addItem:[NSMenuItem separatorItem]];
-            
-            NSMenuItem* quitItem = [[NSMenuItem alloc] initWithTitle:@"Quit Whisperer" 
-                                                             action:@selector(quit:) 
-                                                      keyEquivalent:@"q"];
-            [quitItem setTarget:menuDelegate];
-            [menu addItem:quitItem];
-            
-            statusItem.menu = menu;
+    NSLog(@"menubar_init called");
+    
+    @autoreleasepool {
+        NSLog(@"Creating status bar item...");
+        
+        NSStatusBar *statusBar = [NSStatusBar systemStatusBar];
+        statusItem = [statusBar statusItemWithLength:NSVariableStatusItemLength];
+        
+        if (!statusItem) {
+            NSLog(@"Failed to create status item!");
+            return;
         }
-    });
+        
+        // Set text-based icon for reliability
+        statusItem.button.title = @"🎤";
+        NSLog(@"Set microphone emoji as icon");
+        
+        // Create menu
+        NSMenu* menu = [[NSMenu alloc] init];
+            
+        // Add menu items
+        menuDelegate = [[MenuBarDelegate alloc] init];
+        
+        NSMenuItem* aboutItem = [[NSMenuItem alloc] initWithTitle:@"About Whisperer" 
+                                                          action:@selector(about:) 
+                                                   keyEquivalent:@""];
+        [aboutItem setTarget:menuDelegate];
+        [menu addItem:aboutItem];
+        
+        [menu addItem:[NSMenuItem separatorItem]];
+        
+        NSMenuItem* quitItem = [[NSMenuItem alloc] initWithTitle:@"Quit Whisperer" 
+                                                         action:@selector(quit:) 
+                                                  keyEquivalent:@"q"];
+        [quitItem setTarget:menuDelegate];
+        [menu addItem:quitItem];
+            
+        statusItem.menu = menu;
+        
+        NSLog(@"Menu bar initialization complete");
+        
+        // Make the status item visible
+        statusItem.visible = YES;
+    }
 }
 
 void menubar_cleanup(void) {

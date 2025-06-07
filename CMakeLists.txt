@@ -42,9 +42,20 @@ else()
     set(WHISPER_AVAILABLE FALSE)
 endif()
 
-# Source files for whisperer
+# Source files for whisperer CLI
 set(WHISPERER_SOURCES
     src/main.m
+    src/keylogger.c
+    src/audio.m
+    src/overlay.m
+)
+
+# Add transcription sources
+list(APPEND WHISPERER_SOURCES src/transcription.cpp)
+
+# Source files for whisperer app
+set(WHISPERER_APP_SOURCES
+    src/main_app.m
     src/keylogger.c
     src/audio.m
     src/overlay.m
@@ -52,7 +63,7 @@ set(WHISPERER_SOURCES
 )
 
 # Add transcription sources
-list(APPEND WHISPERER_SOURCES src/transcription.cpp)
+list(APPEND WHISPERER_APP_SOURCES src/transcription.cpp)
 
 # Source files for recorder
 set(RECORDER_SOURCES
@@ -60,8 +71,11 @@ set(RECORDER_SOURCES
     src/audio.m
 )
 
-# Create the whisperer executable
+# Create the whisperer CLI executable
 add_executable(whisperer ${WHISPERER_SOURCES})
+
+# Create the whisperer app executable
+add_executable(whisperer-app ${WHISPERER_APP_SOURCES})
 
 # Create the recorder executable
 add_executable(recorder ${RECORDER_SOURCES})
@@ -74,12 +88,21 @@ if(WHISPER_AVAILABLE)
     target_compile_definitions(test_transcription PRIVATE WHISPER_AVAILABLE)
 endif()
 
-# Link frameworks for whisperer
+# Link frameworks for whisperer CLI
 target_link_libraries(whisperer
     ${APPLICATION_SERVICES_FRAMEWORK}
     ${AVFOUNDATION_FRAMEWORK}
     ${APPKIT_FRAMEWORK}
     ${COREFOUNDATION_FRAMEWORK}
+)
+
+# Link frameworks for whisperer app
+target_link_libraries(whisperer-app
+    ${APPLICATION_SERVICES_FRAMEWORK}
+    ${AVFOUNDATION_FRAMEWORK}
+    ${APPKIT_FRAMEWORK}
+    ${COREFOUNDATION_FRAMEWORK}
+    ${FOUNDATION_FRAMEWORK}
 )
 
 # Link whisper.cpp - required for app to work
@@ -93,6 +116,9 @@ add_subdirectory(${WHISPER_DIR} ${WHISPER_BUILD_DIR} EXCLUDE_FROM_ALL)
 target_include_directories(whisperer PRIVATE ${WHISPER_DIR})
 target_link_libraries(whisperer whisper)
 
+target_include_directories(whisperer-app PRIVATE ${WHISPER_DIR})
+target_link_libraries(whisperer-app whisper)
+
 # Link Metal framework for GPU acceleration
 find_library(METAL_FRAMEWORK Metal)
 find_library(METALKIT_FRAMEWORK MetalKit)
@@ -100,6 +126,11 @@ find_library(METALPERFORMANCE_FRAMEWORK MetalPerformanceShaders)
 
 if(METAL_FRAMEWORK AND METALKIT_FRAMEWORK AND METALPERFORMANCE_FRAMEWORK)
     target_link_libraries(whisperer
+        ${METAL_FRAMEWORK}
+        ${METALKIT_FRAMEWORK}
+        ${METALPERFORMANCE_FRAMEWORK}
+    )
+    target_link_libraries(whisperer-app
         ${METAL_FRAMEWORK}
         ${METALKIT_FRAMEWORK}
         ${METALPERFORMANCE_FRAMEWORK}
@@ -134,12 +165,20 @@ if(WHISPER_AVAILABLE)
 endif()
 
 # Set output directory for all executables
-set_target_properties(whisperer recorder test_transcription PROPERTIES
+set_target_properties(whisperer whisperer-app recorder test_transcription PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
 # Compiler flags for macOS
 target_compile_options(whisperer PRIVATE
+    -Wall
+    -Wextra
+    -Werror
+    -Wno-error=unused-parameter
+    -Wno-error=unused-function
+)
+
+target_compile_options(whisperer-app PRIVATE
     -Wall
     -Wextra
     -Werror

@@ -146,7 +146,6 @@ void signal_handler(int sig) {
         stop_keylogger();
         
         overlay_cleanup();
-        menubar_cleanup();
         
         if (recorder) {
             audio_recorder_destroy(recorder);
@@ -170,9 +169,8 @@ int main(int argc, char *argv[]) {
         
         printf("🎤 Starting Whisperer...\n");
         
-        // Initialize UI systems early
+        // Initialize overlay system only (no menubar for CLI)
         overlay_init();
-        menubar_init();
         
         // Give the UI time to initialize on the main thread
         [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
@@ -200,27 +198,47 @@ int main(int argc, char *argv[]) {
     
     // Initialize Whisper
     printf("🧠 Initializing Whisper model...\n");
+    fflush(stdout);
     
     // Try multiple locations for the model
-    const char* model_paths[] = {
-        // Environment variable (for app bundle)
-        getenv("WHISPERER_MODEL_PATH"),
+    const char* env_model = getenv("WHISPERER_MODEL_PATH");
+    const char* static_paths[] = {
         // App bundle Resources
         "../Resources/models/ggml-base.en.bin",
-        // Development path
+        // Development path from build directory
+        "../whisper.cpp/models/ggml-base.en.bin",
+        // Development path from project root
         "whisper.cpp/models/ggml-base.en.bin",
         // Installed path
         "/Applications/Whisperer.app/Contents/Resources/models/ggml-base.en.bin",
         NULL
     };
     
+    // Build the full list with env var if set
+    const char* model_paths[10];  // Max 10 paths
+    int idx = 0;
+    
+    if (env_model != NULL) {
+        model_paths[idx++] = env_model;
+    }
+    
+    for (int i = 0; static_paths[i] != NULL && idx < 9; i++) {
+        model_paths[idx++] = static_paths[i];
+    }
+    model_paths[idx] = NULL;
+    
+    
     bool model_loaded = false;
     for (int i = 0; model_paths[i] != NULL; i++) {
-        if (model_paths[i] && transcription_init(model_paths[i]) == 0) {
-            whisper_initialized = true;
-            model_loaded = true;
-            printf("✅ Whisper model loaded from: %s\n", model_paths[i]);
-            break;
+        if (model_paths[i]) {
+            // Check if file exists before trying to load
+            if (access(model_paths[i], F_OK) == 0) {
+                if (transcription_init(model_paths[i]) == 0) {
+                    whisper_initialized = true;
+                    model_loaded = true;
+                    break;
+                }
+            }
         }
     }
     
@@ -228,6 +246,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "❌ Failed to load Whisper model\n");
         fprintf(stderr, "   Make sure to run ./build.sh first to download the model\n");
         audio_recorder_destroy(recorder);
+        overlay_cleanup();
         return 1;
     }
     
