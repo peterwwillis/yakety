@@ -191,6 +191,37 @@ void signal_handler(int sig) {
     [alert runModal];
 }
 
+- (void)showLicenses:(id)sender {
+    NSString* licenseText = @"Third-Party Licenses\n\n"
+        @"miniaudio v0.11.22\n"
+        @"Copyright 2025 David Reid\n"
+        @"License: Public Domain (Unlicense) or MIT-0\n"
+        @"https://github.com/mackron/miniaudio\n\n"
+        @"whisper.cpp\n"
+        @"Copyright 2023-2024 The ggml authors\n"
+        @"License: MIT License\n"
+        @"https://github.com/ggerganov/whisper.cpp\n\n"
+        @"Whisper Model (base.en)\n"
+        @"Copyright OpenAI\n"
+        @"License: MIT License\n"
+        @"https://github.com/openai/whisper\n\n"
+        @"For full license texts, see LICENSES.md in the source repository.";
+    
+    NSAlert* alert = [[NSAlert alloc] init];
+    [alert setMessageText:@"Open Source Licenses"];
+    [alert setInformativeText:licenseText];
+    [alert addButtonWithTitle:@"OK"];
+    [alert setAlertStyle:NSAlertStyleInformational];
+    
+    // Make the window wider to better display license info
+    NSWindow* window = alert.window;
+    NSRect frame = window.frame;
+    frame.size.width = 600;
+    [window setFrame:frame display:YES];
+    
+    [alert runModal];
+}
+
 - (void)quitApp:(id)sender {
     // Send SIGTERM to trigger graceful shutdown
     kill(getpid(), SIGTERM);
@@ -225,6 +256,7 @@ void signal_handler(int sig) {
     // Create menu
     NSMenu *menu = [[NSMenu alloc] init];
     [menu addItemWithTitle:@"About Yakety" action:@selector(showAbout:) keyEquivalent:@""];
+    [menu addItemWithTitle:@"Open Source Licenses" action:@selector(showLicenses:) keyEquivalent:@""];
     [menu addItem:[NSMenuItem separatorItem]];
     [menu addItemWithTitle:@"Quit Yakety" action:@selector(quitApp:) keyEquivalent:@"q"];
     
