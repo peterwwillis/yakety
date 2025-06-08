@@ -119,15 +119,16 @@ static void menu_about(void) {
         "Voice-to-text input for any application\n\n"
         "Hold FN key (or Right Ctrl on Windows) to record,\n"
         "release to transcribe and paste.\n\n"
-        "© 2024 Yakety Contributors");
+        "© 2024 Mario Zechner");
 }
 
 static void menu_licenses(void) {
     dialog_info("Licenses",
-        "Yakety is open source software.\n\n"
         "This software includes:\n"
-        "- Whisper.cpp (MIT License)\n"
-        "- miniaudio (Public Domain)\n\n"
+        "- Whisper.cpp by ggml authors (MIT License)\n"
+        "- ggml by ggml authors (MIT License)\n"
+        "- Whisper base.en model by OpenAI (MIT License)\n"
+        "- miniaudio by David Reid (Public Domain)\n\n"
         "See LICENSES.md for full details.");
 }
 
