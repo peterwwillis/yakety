@@ -80,23 +80,28 @@ build/bin/
 └── test_transcription       # Transcription test tool
 ```
 
-### Creating a macOS DMG
+### Creating macOS Distribution Packages
 
-To create a distributable DMG file:
+After building, you can create distributable packages:
 
 ```bash
 # Build the release version first
 cmake --preset=release
 cmake --build --preset=release
 
-# Create DMG
+# Create a ZIP file (simplest option)
+cmake --build --preset=release --target zip
+
+# Create a DMG file
 cmake --build --preset=release --target dmg
 
-# Or if you have create-dmg installed (brew install create-dmg)
+# Or create a fancy DMG with custom styling (requires: brew install create-dmg)
 cmake --build --preset=release --target dmg-fancy
 ```
 
-The DMG will be created as `build/Yakety-1.0.0.dmg`
+The packages will be created as:
+- `build/Yakety-1.0.0.zip` - Simple ZIP archive
+- `build/Yakety-1.0.0.dmg` - Standard disk image
 
 ### Windows
 ```

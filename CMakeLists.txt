@@ -368,4 +368,21 @@ if(APPLE)
     endif()
     
     message(STATUS "DMG target available: make dmg")
+    
+    # ZIP creation target
+    add_custom_target(zip
+        DEPENDS yakety-app
+        COMMAND ${CMAKE_COMMAND} -E remove -f ${CMAKE_BINARY_DIR}/${DMG_NAME}.zip
+        
+        # Use ditto to create ZIP (better for macOS bundles with symlinks and resource forks)
+        COMMAND ditto -c -k --keepParent ${CMAKE_BINARY_DIR}/bin/Yakety.app ${CMAKE_BINARY_DIR}/${DMG_NAME}.zip
+        
+        # Report success
+        COMMAND ${CMAKE_COMMAND} -E echo "✅ Created ${DMG_NAME}.zip"
+        
+        COMMENT "Creating ZIP package..."
+        VERBATIM
+    )
+    
+    message(STATUS "ZIP target available: make zip")
 endif()
