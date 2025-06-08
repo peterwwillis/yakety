@@ -49,9 +49,9 @@ The build process is fully automated through CMake. It will:
 git clone https://github.com/yourusername/yakety.git
 cd yakety
 
-# Build with default settings (Release mode)
-cmake --preset=default
-cmake --build --preset=default
+# Build with release settings
+cmake --preset=release
+cmake --build --preset=release
 
 # Or build with debug symbols and sanitizers
 cmake --preset=debug
