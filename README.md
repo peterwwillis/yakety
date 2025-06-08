@@ -27,12 +27,6 @@ A voice-to-text input tool that works in any application. Hold a hotkey to recor
 - Vulkan SDK (optional, for GPU acceleration)
 - ImageMagick (optional, for icon generation)
 
-### Linux
-- CMake 3.20+
-- Ninja build system
-- GCC or Clang
-- ALSA/PulseAudio development libraries
-- X11 development libraries
 
 ## Building
 
@@ -46,7 +40,7 @@ The build process is fully automated through CMake. It will:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/yakety.git
+git clone https://github.com/badlogic/yakety.git
 cd yakety
 
 # Build with release settings
@@ -151,10 +145,11 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for details on the modular architecture a
 
 ## License
 
-MIT License - see LICENSE file for details.
+Proprietary software © 2025 Mario Zechner. All rights reserved.
 
 ## Acknowledgments
 
-- [OpenAI Whisper](https://github.com/openai/whisper) for the speech recognition model
-- [whisper.cpp](https://github.com/ggerganov/whisper.cpp) for the C++ implementation
-- [miniaudio](https://github.com/mackron/miniaudio) for cross-platform audio
+- [OpenAI Whisper](https://github.com/openai/whisper) for the speech recognition model (MIT License)
+- [whisper.cpp](https://github.com/ggerganov/whisper.cpp) by ggml authors for the C++ implementation (MIT License)
+- [ggml](https://github.com/ggerganov/ggml) by ggml authors for the tensor library (MIT License)
+- [miniaudio](https://github.com/mackron/miniaudio) by David Reid for cross-platform audio (Public Domain)

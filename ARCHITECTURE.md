@@ -41,6 +41,7 @@ The CMake build system creates:
 2. **Single Source Truth** - One `main.c` for both app types using conditional compilation
 3. **Clean Interfaces** - Well-defined module APIs with no platform leakage
 4. **Consistent Patterns** - All modules follow similar initialization/cleanup patterns
+5. **Unified Callbacks** - Both CLI and tray apps use the same `on_ready` callback for initialization
 
 ## Adding New Platforms
 
@@ -73,11 +74,11 @@ main.c
 - `logging.m` - NSLog for GUI, printf for console
 - `clipboard.m` - NSPasteboard + CGEvent simulation
 - `overlay.m` - NSWindow overlay
-- `dialog.m` - NSAlert
-- `menu.m` - NSStatusItem
-- `keylogger.c` - CGEventTap
-- `app.m` - NSApplication
-- `utils.m` - Foundation utilities
+- `dialog.m` - NSAlert with accessibility permission handling
+- `menu.m` - NSStatusItem with proper retention
+- `keylogger.c` - CGEventTap with FN key detection via flags
+- `app.m` - NSApplication with unified run loop handling
+- `utils.m` - Foundation utilities including accessibility settings
 
 ### Windows (`platform.lib`)
 - `logging.c` - OutputDebugString for GUI, printf for console
