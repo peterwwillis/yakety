@@ -62,13 +62,13 @@ if %WHISPER_LIB_EXISTS%==0 (
     mkdir build 2>nul
     cd build
     
-    :: Configure for Windows - with optional Vulkan support
-    if %ENABLE_VULKAN%==1 (
-        echo Configuring whisper.cpp with Vulkan GPU acceleration (static libraries^)...
-        cmake .. -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release -DGGML_VULKAN=ON
+    :: Configure for Windows - with optional Vulkan support (64-bit)
+    if "%ENABLE_VULKAN%"=="1" (
+        echo Configuring whisper.cpp with Vulkan GPU acceleration for 64-bit (static libraries^)...
+        cmake .. -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release -DGGML_VULKAN=ON -A x64
     ) else (
-        echo Configuring whisper.cpp for CPU-only build (static libraries^)...
-        cmake .. -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release
+        echo Configuring whisper.cpp for CPU-only 64-bit build (static libraries^)...
+        cmake .. -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release -A x64
     )
     if %errorlevel% neq 0 (
         echo ERROR: Failed to configure whisper.cpp
@@ -99,7 +99,7 @@ if not exist "whisper.cpp\models\ggml-base.en.bin" (
         curl -L -o ggml-base.en.bin --progress-bar https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
     ) else (
         :: Fallback to PowerShell with progress preference disabled for speed
-        echo   curl not found, using PowerShell (this may be slower)...
+        echo   curl not found, using PowerShell ^(this may be slower^)...
         powershell -Command "$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin' -OutFile 'ggml-base.en.bin'"
     )
     
@@ -115,9 +115,9 @@ if not exist "whisper.cpp\models\ggml-base.en.bin" (
 if not exist "build" mkdir build
 cd build
 
-:: Configure the project
-echo Configuring Yakety...
-cmake .. -DCMAKE_BUILD_TYPE=Release
+:: Configure the project for 64-bit
+echo Configuring Yakety for 64-bit...
+cmake .. -DCMAKE_BUILD_TYPE=Release -A x64
 if %errorlevel% neq 0 (
     echo ERROR: CMake configuration failed
     exit /b 1
