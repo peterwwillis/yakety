@@ -135,6 +135,31 @@ static void menu_quit(void) {
     g_running = false;
     app_quit();
 }
+
+static void on_app_ready(void) {
+    // Create and show menu when app is ready
+    g_menu = menu_create();
+    if (!g_menu) {
+        log_error("Failed to create menu");
+        app_quit();
+        return;
+    }
+    
+    menu_add_item(g_menu, "About Yakety", menu_about);
+    menu_add_item(g_menu, "Licenses", menu_licenses);
+    menu_add_separator(g_menu);
+    menu_add_item(g_menu, "Quit", menu_quit);
+    
+    if (menu_show(g_menu) != 0) {
+        log_error("Failed to show menu");
+        menu_destroy(g_menu);
+        g_menu = NULL;
+        app_quit();
+        return;
+    }
+    
+    log_info("Menu created successfully");
+}
 #endif
 
 int main(int argc, char** argv) {
@@ -150,9 +175,11 @@ int main(int argc, char** argv) {
         .name = "Yakety",
         .version = "1.0",
         #ifdef YAKETY_TRAY_APP
-        .is_console = false
+        .is_console = false,
+        .on_ready = on_app_ready
         #else
-        .is_console = true
+        .is_console = true,
+        .on_ready = NULL
         #endif
     };
     
@@ -194,34 +221,6 @@ int main(int argc, char** argv) {
     }
     
     g_state = &state;
-    
-    #ifdef YAKETY_TRAY_APP
-    // Create and show menu
-    g_menu = menu_create();
-    if (!g_menu) {
-        log_error("Failed to create menu");
-        audio_recorder_destroy(state.recorder);
-        transcription_cleanup();
-        overlay_cleanup();
-        app_cleanup();
-        return 1;
-    }
-    
-    menu_add_item(g_menu, "About Yakety", menu_about);
-    menu_add_item(g_menu, "Licenses", menu_licenses);
-    menu_add_separator(g_menu);
-    menu_add_item(g_menu, "Quit", menu_quit);
-    
-    if (menu_show(g_menu) != 0) {
-        log_error("Failed to show menu");
-        menu_destroy(g_menu);
-        audio_recorder_destroy(state.recorder);
-        transcription_cleanup();
-        overlay_cleanup();
-        app_cleanup();
-        return 1;
-    }
-    #endif
     
     // Initialize keylogger
     if (keylogger_init(on_key_press, on_key_release, &state) != 0) {

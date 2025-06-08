@@ -3,10 +3,13 @@
 
 #include <stdbool.h>
 
+typedef void (*AppReadyCallback)(void);
+
 typedef struct {
     const char* name;
     const char* version;
     bool is_console;
+    AppReadyCallback on_ready;
 } AppConfig;
 
 int app_init(const AppConfig* config);

@@ -1,11 +1,14 @@
 #import <Cocoa/Cocoa.h>
 #include "../menu.h"
 #include "../dialog.h"
+#include "../logging.h"
 #include <stdlib.h>
 #include <string.h>
 
 static NSStatusItem* statusItem = nil;
 static MenuSystem* g_menu_system = NULL;
+static NSMenu* statusMenu = nil;
+static NSImage* statusIcon = nil;
 
 @interface MenuBarDelegate : NSObject {
     MenuSystem* menuSystem;
@@ -88,47 +91,95 @@ int menu_show(MenuSystem* menu) {
     
     g_menu_system = menu;
     
-    @autoreleasepool {
+    // Create a block to ensure menu creation happens on main thread
+    void (^createMenuBlock)(void) = ^{
+        log_info("Creating status bar item...");
+        
+        // Make sure NSApp is initialized
+        [NSApplication sharedApplication];
+        
         NSStatusBar *statusBar = [NSStatusBar systemStatusBar];
         statusItem = [statusBar statusItemWithLength:NSVariableStatusItemLength];
         
         if (!statusItem) {
-            return -1;
+            log_error("Failed to create status item!");
+            return;
         }
+        
+        // CRITICAL: Retain the status item to prevent it from being deallocated
+        [statusItem retain];
+        
+        log_info("Created status item successfully");
+        
+        // First set the button to have some content so it appears
+        statusItem.button.title = @""; // Empty title to start
         
         // Load icon image
         NSString* iconPath = [[NSBundle mainBundle] pathForResource:@"menubar" ofType:@"png"];
-        NSImage* icon = nil;
         
         if (iconPath) {
-            icon = [[NSImage alloc] initWithContentsOfFile:iconPath];
-            [icon setTemplate:YES]; // Makes it adapt to dark/light mode
-            statusItem.button.image = icon;
+            statusIcon = [[NSImage alloc] initWithContentsOfFile:iconPath];
+            if (statusIcon) {
+                [statusIcon setTemplate:YES]; // Makes it adapt to dark/light mode
+                [statusIcon setSize:NSMakeSize(18, 18)]; // Standard menu bar icon size
+                statusItem.button.image = statusIcon;
+                log_info("Loaded menubar icon from bundle: %s", [iconPath UTF8String]);
+                
+                // Debug: check icon properties
+                log_info("Icon size: %.0fx%.0f", statusIcon.size.width, statusIcon.size.height);
+                log_info("Button frame: %.0fx%.0f", statusItem.button.frame.size.width, statusItem.button.frame.size.height);
+            } else {
+                log_error("Failed to load icon from path: %s", [iconPath UTF8String]);
+                statusItem.button.title = @"🎤";
+            }
         } else {
             // Fallback to emoji if icon not found
             statusItem.button.title = @"🎤";
+            log_info("Icon not found in bundle, using emoji fallback");
+            
+            // List bundle resources for debugging
+            NSArray* pngFiles = [[NSBundle mainBundle] pathsForResourcesOfType:@"png" inDirectory:nil];
+            log_info("PNG files in bundle: %lu", (unsigned long)[pngFiles count]);
+            for (NSString* path in pngFiles) {
+                log_info("  - %s", [path UTF8String]);
+            }
         }
         
-        // Create menu
-        NSMenu* nsMenu = [[NSMenu alloc] init];
+        // Create menu - already retained by alloc/init
+        statusMenu = [[NSMenu alloc] init];
         menuDelegate = [[MenuBarDelegate alloc] initWithMenuSystem:menu];
         
         // Add all menu items
         for (int i = 0; i < menu->item_count; i++) {
             if (menu->items[i].is_separator) {
-                [nsMenu addItem:[NSMenuItem separatorItem]];
+                [statusMenu addItem:[NSMenuItem separatorItem]];
             } else {
                 NSMenuItem* item = [[NSMenuItem alloc] initWithTitle:[NSString stringWithUTF8String:menu->items[i].title]
                                                              action:@selector(handleMenuItem:)
                                                       keyEquivalent:@""];
                 [item setTarget:menuDelegate];
                 [item setTag:i];
-                [nsMenu addItem:item];
+                [statusMenu addItem:item];
             }
         }
         
-        statusItem.menu = nsMenu;
-        statusItem.visible = YES;
+        [statusItem setMenu:statusMenu];
+        [statusItem setVisible:YES];
+        
+        // Force the button to redraw
+        [statusItem.button setNeedsDisplay:YES];
+        
+        log_info("Menu bar setup complete - icon should be visible");
+        log_info("Status item visible: %d", statusItem.visible);
+        log_info("Status item button: %p", statusItem.button);
+    };
+    
+    // If we're already on the main thread, execute directly
+    if ([NSThread isMainThread]) {
+        createMenuBlock();
+    } else {
+        // Otherwise dispatch to main thread
+        dispatch_sync(dispatch_get_main_queue(), createMenuBlock);
     }
     
     return 0;
@@ -141,10 +192,21 @@ void menu_hide(MenuSystem* menu) {
     
     if (statusItem) {
         [[NSStatusBar systemStatusBar] removeStatusItem:statusItem];
+        [statusItem release];
         statusItem = nil;
-        menuDelegate = nil;
     }
     
+    if (statusMenu) {
+        [statusMenu release];
+        statusMenu = nil;
+    }
+    
+    if (statusIcon) {
+        [statusIcon release];
+        statusIcon = nil;
+    }
+    
+    menuDelegate = nil;
     g_menu_system = NULL;
 }
 

@@ -4,32 +4,42 @@
 #include "../overlay.h"
 
 static AppConfig g_config = {0};
-static CFRunLoopTimerRef g_timer = NULL;
 static volatile bool g_running = true;
 bool g_is_console = false;  // Global for logging module
 
-static void timer_callback(CFRunLoopTimerRef timer, void *info) {
-    (void)timer;
-    (void)info;
+@interface AppDelegate : NSObject <NSApplicationDelegate>
+@end
 
-    if (!g_running) {
-        CFRunLoopStop(CFRunLoopGetCurrent());
-        return;
-    }
+@implementation AppDelegate
 
-    // Process any pending events for GUI apps
+- (void)applicationDidFinishLaunching:(NSNotification *)notification {
+    (void)notification;
+    
+    // Switch to accessory mode after launch for tray apps
     if (!g_config.is_console) {
-        @autoreleasepool {
-            NSEvent *event = [NSApp nextEventMatchingMask:NSEventMaskAny
-                                               untilDate:[NSDate dateWithTimeIntervalSinceNow:0]
-                                                  inMode:NSDefaultRunLoopMode
-                                                 dequeue:YES];
-            if (event) {
-                [NSApp sendEvent:event];
-            }
-        }
+        [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+    }
+    
+    // The app is now ready - call the callback if provided
+    if (g_config.on_ready) {
+        g_config.on_ready();
     }
 }
+
+- (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
+    (void)sender;
+    return NO;  // Keep running in the background
+}
+
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
+    (void)sender;
+    g_running = false;
+    return NSTerminateNow;
+}
+
+@end
+
+static AppDelegate* g_app_delegate = nil;
 
 int app_init(const AppConfig* config) {
     g_config = *config;
@@ -41,35 +51,28 @@ int app_init(const AppConfig* config) {
     if (config->is_console) {
         [NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited];
     } else {
-        [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+        // For tray apps, start as regular to ensure UI works properly
+        [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+        
+        g_app_delegate = [[AppDelegate alloc] init];
+        [NSApp setDelegate:g_app_delegate];
     }
-
-    // Set up timer for main loop
-    g_timer = CFRunLoopTimerCreate(
-        kCFAllocatorDefault,
-        CFAbsoluteTimeGetCurrent() + 0.01,
-        0.01,  // 10ms interval
-        0,
-        0,
-        timer_callback,
-        NULL
-    );
-    CFRunLoopAddTimer(CFRunLoopGetCurrent(), g_timer, kCFRunLoopCommonModes);
 
     return 0;
 }
 
 void app_cleanup(void) {
-    if (g_timer) {
-        CFRunLoopTimerInvalidate(g_timer);
-        CFRelease(g_timer);
-        g_timer = NULL;
-    }
+    g_app_delegate = nil;
 }
 
 void app_run(void) {
-    // Just pump the run loop once
-    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.01, false);
+    if (g_config.is_console) {
+        // For console apps, just pump the run loop
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.01, false);
+    } else {
+        // For tray apps, run the full NSApplication run loop
+        [NSApp run];
+    }
 }
 
 void app_quit(void) {
