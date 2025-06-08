@@ -42,6 +42,24 @@ static CGEventRef CGEventCallback(CGEventTapProxy proxy, CGEventType type, CGEve
             }
         }
     }
+    else if (type == kCGEventFlagsChanged) {
+        CGEventFlags flags = CGEventGetFlags(event);
+        bool fnFlagPressed = (flags & kCGEventFlagMaskSecondaryFn) != 0;
+        
+        // Use flag method as primary detection for FN key
+        if (fnFlagPressed != fnKeyPressed) {
+            fnKeyPressed = fnFlagPressed;
+            if (fnFlagPressed) {
+                if (g_on_press) {
+                    g_on_press(g_userdata);
+                }
+            } else {
+                if (g_on_release) {
+                    g_on_release(g_userdata);
+                }
+            }
+        }
+    }
     else if (type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput) {
         // Re-enable the event tap
         CGEventTapEnable(eventTap, true);
@@ -56,7 +74,9 @@ int keylogger_init(KeyCallback on_press, KeyCallback on_release, void* userdata)
     g_userdata = userdata;
     
     // Create event tap
-    CGEventMask eventMask = (1 << kCGEventKeyDown) | (1 << kCGEventKeyUp) | (1 << kCGEventFlagsChanged);
+    CGEventMask eventMask = CGEventMaskBit(kCGEventKeyDown) | 
+                           CGEventMaskBit(kCGEventKeyUp) | 
+                           CGEventMaskBit(kCGEventFlagsChanged);
     
     eventTap = CGEventTapCreate(
         kCGSessionEventTap,

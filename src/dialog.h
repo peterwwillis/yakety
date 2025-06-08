@@ -7,4 +7,10 @@ void dialog_error(const char* title, const char* message);
 void dialog_info(const char* title, const char* message);
 bool dialog_confirm(const char* title, const char* message);
 
+#ifdef __APPLE__
+// macOS-specific dialogs for accessibility permission
+int dialog_accessibility_permission(void);
+bool dialog_wait_for_permission(void);
+#endif
+
 #endif // DIALOG_H

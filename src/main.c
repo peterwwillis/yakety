@@ -135,9 +135,12 @@ static void menu_quit(void) {
     g_running = false;
     app_quit();
 }
+#endif
 
+// Called when app is ready - for both CLI and tray apps
 static void on_app_ready(void) {
-    // Create and show menu when app is ready
+    #ifdef YAKETY_TRAY_APP
+    // Create and show menu for tray apps
     g_menu = menu_create();
     if (!g_menu) {
         log_error("Failed to create menu");
@@ -159,8 +162,57 @@ static void on_app_ready(void) {
     }
     
     log_info("Menu created successfully");
+    #endif
+    
+    // Initialize keylogger for all apps (after run loop is active)
+    bool keylogger_started = false;
+    while (!keylogger_started) {
+        if (keylogger_init(on_key_press, on_key_release, g_state) == 0) {
+            keylogger_started = true;
+            log_info("✅ Keylogger started successfully");
+        } else {
+            #ifdef __APPLE__
+            #ifdef YAKETY_TRAY_APP
+            // Need accessibility permission on macOS
+            int response = dialog_accessibility_permission();
+            if (response == 0) {
+                // User says they granted permission - retry
+                utils_sleep_ms(500);
+                continue;
+            } else if (response == 1) {
+                // Open System Preferences and wait
+                utils_open_accessibility_settings();
+                if (dialog_wait_for_permission()) {
+                    utils_sleep_ms(500);
+                    continue;
+                } else {
+                    // User chose to quit
+                    app_quit();
+                    return;
+                }
+            } else {
+                // User chose to quit
+                app_quit();
+                return;
+            }
+            #else
+            // CLI app - just log and exit
+            log_error("Failed to initialize keyboard monitoring");
+            log_error("Please grant accessibility permission in System Preferences → Security & Privacy → Privacy → Accessibility");
+            app_quit();
+            return;
+            #endif
+            #else
+            // Non-macOS platforms
+            log_error("Failed to initialize keyboard monitoring");
+            app_quit();
+            return;
+            #endif
+        }
+    }
+    
+    log_info("Yakety is running. Press and hold FN to record.");
 }
-#endif
 
 int main(int argc, char** argv) {
     (void)argc;
@@ -176,11 +228,10 @@ int main(int argc, char** argv) {
         .version = "1.0",
         #ifdef YAKETY_TRAY_APP
         .is_console = false,
-        .on_ready = on_app_ready
         #else
         .is_console = true,
-        .on_ready = NULL
         #endif
+        .on_ready = on_app_ready
     };
     
     if (app_init(&config) != 0) {
@@ -222,27 +273,8 @@ int main(int argc, char** argv) {
     
     g_state = &state;
     
-    // Initialize keylogger
-    if (keylogger_init(on_key_press, on_key_release, &state) != 0) {
-        log_error("Failed to initialize keyboard monitoring");
-        #ifdef YAKETY_TRAY_APP
-        if (g_menu) {
-            menu_destroy(g_menu);
-        }
-        #endif
-        audio_recorder_destroy(state.recorder);
-        transcription_cleanup();
-        overlay_cleanup();
-        app_cleanup();
-        return 1;
-    }
-    
-    log_info("Yakety is running. Press and hold FN to record.");
-    
     // Run the app
-    while (g_running) {
-        app_run();
-    }
+    app_run();
     
     // Cleanup
     keylogger_cleanup();

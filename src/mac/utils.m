@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import <AppKit/AppKit.h>
 #include "../utils.h"
 #include "../logging.h"
 #include <sys/time.h>
@@ -105,4 +106,10 @@ const char* utils_get_model_path(void) {
     
     log_error("  ❌ Model not found in any location!\n");
     return NULL;
+}
+
+void utils_open_accessibility_settings(void) {
+    @autoreleasepool {
+        [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"]];
+    }
 }

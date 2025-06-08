@@ -2,6 +2,7 @@
 #import <AVFoundation/AVFoundation.h>
 #include "../app.h"
 #include "../overlay.h"
+#include "../utils.h"
 
 static AppConfig g_config = {0};
 static volatile bool g_running = true;
@@ -50,6 +51,14 @@ int app_init(const AppConfig* config) {
 
     if (config->is_console) {
         [NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited];
+        
+        // For console apps, call on_ready immediately after init
+        if (g_config.on_ready) {
+            // Schedule on_ready to run on the next iteration of the run loop
+            dispatch_async(dispatch_get_main_queue(), ^{
+                g_config.on_ready();
+            });
+        }
     } else {
         // For tray apps, start as regular to ensure UI works properly
         [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
@@ -67,8 +76,9 @@ void app_cleanup(void) {
 
 void app_run(void) {
     if (g_config.is_console) {
-        // For console apps, just pump the run loop
-        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.01, false);
+        // For console apps, run the main run loop
+        // This will block until CFRunLoopStop is called in app_quit()
+        CFRunLoopRun();
     } else {
         // For tray apps, run the full NSApplication run loop
         [NSApp run];
@@ -78,7 +88,10 @@ void app_run(void) {
 void app_quit(void) {
     g_running = false;
 
-    if (!g_config.is_console) {
+    if (g_config.is_console) {
+        // Stop the run loop for console apps
+        CFRunLoopStop(CFRunLoopGetMain());
+    } else {
         dispatch_async(dispatch_get_main_queue(), ^{
             [NSApp terminate:nil];
         });
