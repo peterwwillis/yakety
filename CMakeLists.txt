@@ -13,6 +13,12 @@ include(GenerateIcons)
 include(BuildWhisper)
 include(PlatformSetup)
 
+# Platform-specific setup
+if(APPLE)
+    # Build universal binary for both Intel and Apple Silicon
+    set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "Build for both architectures" FORCE)
+endif()
+
 # Generate icons if needed
 generate_icons()
 
@@ -21,12 +27,6 @@ build_whisper_cpp()
 
 # Download whisper model
 download_whisper_model()
-
-# Platform-specific setup
-if(APPLE)
-    # Build universal binary for both Intel and Apple Silicon
-    set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "Build for both architectures" FORCE)
-endif()
 
 # Setup platform libraries
 setup_platform_libs()
@@ -53,7 +53,7 @@ if(APPLE)
         src/mac/keylogger.c
         src/mac/app.m
         src/mac/utils.m
-        src/mac/config.m
+        src/config.c
     )
     target_link_libraries(platform PUBLIC ${PLATFORM_FRAMEWORKS})
 elseif(WIN32)
@@ -66,7 +66,7 @@ elseif(WIN32)
         src/windows/keylogger.c
         src/windows/app.c
         src/windows/utils.c
-        src/windows/config.c
+        src/config.c
     )
     target_link_libraries(platform PUBLIC ${PLATFORM_LIBS})
     if(HAS_VULKAN)
@@ -175,9 +175,9 @@ target_include_directories(test_transcription PRIVATE ${CMAKE_CURRENT_SOURCE_DIR
 
 # Link frameworks for recorder
 if(APPLE)
-    target_link_libraries(recorder ${PLATFORM_FRAMEWORKS})
+    target_link_libraries(recorder platform ${PLATFORM_FRAMEWORKS})
 elseif(WIN32)
-    target_link_libraries(recorder ${PLATFORM_LIBS})
+    target_link_libraries(recorder platform ${PLATFORM_LIBS})
 endif()
 
 # Find and link whisper.cpp libraries
