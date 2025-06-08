@@ -41,6 +41,16 @@ int dialog_accessibility_permission(void) {
         [alert addButtonWithTitle:@"Open System Preferences"];
         [alert addButtonWithTitle:@"Quit"];
         
+        // Set the app icon
+        NSImage* icon = [NSImage imageNamed:NSImageNameApplicationIcon];
+        if (!icon) {
+            // Try to load from bundle
+            icon = [[NSImage alloc] initWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"yakety" ofType:@"icns"]];
+        }
+        if (icon) {
+            [alert setIcon:icon];
+        }
+        
         NSModalResponse response = [alert runModal];
         
         if (response == NSAlertFirstButtonReturn) {
@@ -60,6 +70,16 @@ bool dialog_wait_for_permission(void) {
         [alert setInformativeText:@"Please grant accessibility permission in System Preferences, then click Continue."];
         [alert addButtonWithTitle:@"Continue"];
         [alert addButtonWithTitle:@"Quit"];
+        
+        // Set the app icon
+        NSImage* icon = [NSImage imageNamed:NSImageNameApplicationIcon];
+        if (!icon) {
+            // Try to load from bundle
+            icon = [[NSImage alloc] initWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"yakety" ofType:@"icns"]];
+        }
+        if (icon) {
+            [alert setIcon:icon];
+        }
         
         return [alert runModal] == NSAlertFirstButtonReturn;
     }
