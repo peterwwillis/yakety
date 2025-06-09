@@ -32,6 +32,7 @@ static void create_default_config(Config* config) {
     config_set_bool(config, "show_notifications", true);
     config_set_bool(config, "launch_at_login", false);
     config_set_string(config, "model", "");  // Empty means use default search
+    config_set_string(config, "language", "en");  // Default to English for low latency
 }
 
 static ConfigEntry* find_entry(Config* config, const char* key) {

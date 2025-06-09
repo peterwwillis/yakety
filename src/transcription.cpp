@@ -2,6 +2,7 @@ extern "C" {
 #include "transcription.h"
 #include "logging.h"
 #include "utils.h"
+#include "config.h"
 }
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,31 +10,61 @@ extern "C" {
 
 #include <vector>
 #include <fstream>
+#include <thread>
 #include "whisper.h"
 
 static struct whisper_context* ctx = NULL;
+static char g_language[16] = "en";  // Default to English
+
+void transcription_set_language(const char* language) {
+    if (language && strlen(language) > 0) {
+        strncpy(g_language, language, sizeof(g_language) - 1);
+        g_language[sizeof(g_language) - 1] = '\0';
+        log_info("🌐 Transcription language set to: %s\n", g_language);
+    }
+}
 
 int transcription_init(const char* model_path) {
     if (!model_path) {
         log_error("ERROR: No model path provided\n");
         return -1;
     }
-    
+
     log_info("🧠 Loading Whisper model: %s\n", model_path);
-    
+
     double start = utils_now();
-    
+
     struct whisper_context_params cparams = whisper_context_default_params();
+
+    // Enable Flash Attention for better performance
+    cparams.flash_attn = true;
+    cparams.use_gpu = true;  // Ensure GPU is enabled for Flash Attention
+
+    // Log what we're requesting
+    log_info("🔧 Requesting Flash Attention: %s, GPU: %s\n",
+             cparams.flash_attn ? "YES" : "NO",
+             cparams.use_gpu ? "YES" : "NO");
+
     ctx = whisper_init_from_file_with_params(model_path, cparams);
-    
+
     double duration = utils_now() - start;
-    
+
     if (!ctx) {
         log_error("ERROR: Failed to initialize Whisper from model file: %s\n", model_path);
         return -1;
     }
-    
+
     log_info("✅ Whisper initialized successfully (took %.0f ms)\n", duration * 1000.0);
+    log_info("⚡ Requested - Flash Attention: %s, GPU: %s\n",
+             cparams.flash_attn ? "enabled" : "disabled",
+             cparams.use_gpu ? "enabled" : "disabled");
+
+    // Log actual whisper context state
+    if (ctx) {
+        // Note: whisper.cpp doesn't expose a way to get actual params, so we'll trust the model load output
+        log_info("📊 Check model load output above for actual flash_attn status\n");
+    }
+
     return 0;
 }
 
@@ -50,7 +81,8 @@ char* transcription_process(const float* audio_data, int n_samples, int sample_r
         return NULL;
     }
 
-    log_info("🧠 Transcribing %d audio samples (%.2f seconds)...\n", n_samples, (float)n_samples / 16000.0f);
+    log_info("🧠 Transcribing %d audio samples (%.2f seconds) using language: %s\n", 
+             n_samples, (float)n_samples / 16000.0f, g_language);
 
     double total_start = utils_now();
 
@@ -61,8 +93,15 @@ char* transcription_process(const float* audio_data, int n_samples, int sample_r
     wparams.print_timestamps = false;
     wparams.print_special = false;
     wparams.translate = false;
-    wparams.language = "en";
-    wparams.n_threads = 4;
+    wparams.language = g_language;  // Use configured language
+    // Use optimal number of threads (leave some for system)
+    int n_threads = std::thread::hardware_concurrency();
+    if (n_threads > 1) {
+        n_threads = std::min(n_threads - 1, 8);  // Leave one core for system, cap at 8
+    } else {
+        n_threads = 4;  // Default fallback
+    }
+    wparams.n_threads = n_threads;
     wparams.offset_ms = 0;
     wparams.duration_ms = 0;
 
@@ -70,9 +109,9 @@ char* transcription_process(const float* audio_data, int n_samples, int sample_r
     double whisper_start = utils_now();
     int whisper_result = whisper_full(ctx, wparams, audio_data, n_samples);
     double whisper_duration = utils_now() - whisper_start;
-    
+
     log_info("⏱️  Whisper inference took: %.0f ms\n", whisper_duration * 1000.0);
-    
+
     if (whisper_result != 0) {
         log_error("ERROR: Failed to run whisper transcription\n");
         return NULL;
@@ -168,7 +207,7 @@ char* transcription_process(const float* audio_data, int n_samples, int sample_r
     *write = '\0';
 
     double total_duration = utils_now() - total_start;
-    
+
     log_info("✅ Transcription complete: \"%s\"\n", result);
     log_info("⏱️  Total transcription process took: %.0f ms\n", total_duration * 1000.0);
     return result;
@@ -325,16 +364,16 @@ int transcribe_file(const char* audio_file, char* result, size_t result_size) {
     if (transcription == NULL) {
         return -1;
     }
-    
+
     // Copy to result buffer for backward compatibility with test code
     strncpy(result, transcription, result_size - 1);
     result[result_size - 1] = '\0';
-    
+
     // Warn if truncated
     if (strlen(transcription) >= result_size) {
         log_error("WARNING: Transcription truncated in transcribe_file - buffer too small\n");
     }
-    
+
     free(transcription);
     return 0;
 }

@@ -131,24 +131,31 @@ static int read_wav_file(const char* filename, WavFile* wav) {
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
-        printf("Usage: %s <audio_file.wav>\n", argv[0]);
+        printf("Usage: %s <audio_file.wav> [model_path]\n", argv[0]);
         printf("Example: %s ./out.wav\n", argv[0]);
+        printf("Example: %s ./out.wav /path/to/ggml-model.bin\n", argv[0]);
         return 1;
     }
 
     const char* audio_file = argv[1];
+    const char* model_path = NULL;
+    
+    // Check if model path was provided as second argument
+    if (argc >= 3) {
+        model_path = argv[2];
+    } else {
+        // Get default model path
+        model_path = utils_get_model_path();
+        if (!model_path) {
+            printf("Error: Could not find Whisper model file\n");
+            return 1;
+        }
+    }
     
     printf("=== Whisper Transcription Performance Test ===\n");
     printf("Audio file: %s\n", audio_file);
     
     double start_time = utils_now();
-    
-    // Get model path and initialize transcription
-    const char* model_path = utils_get_model_path();
-    if (!model_path) {
-        printf("Error: Could not find Whisper model file\n");
-        return 1;
-    }
     
     printf("Using model: %s\n", model_path);
     printf("Loading model...\n");

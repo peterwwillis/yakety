@@ -63,6 +63,14 @@ static void* load_model_async(void* arg) {
         log_error("Failed to initialize transcription");
         return (void*)0; // Return 0 for failure
     }
+    
+    // Set language from config
+    const char* language = config_get_string(config, "language");
+    if (language) {
+        transcription_set_language(language);
+    } else {
+        transcription_set_language("en"); // Default to English
+    }
 
     log_info("Model loaded successfully");
     return (void*)1; // Return 1 for success
@@ -210,7 +218,6 @@ static void on_key_release(void* userdata) {
 
                     double clipboard_start = utils_now();
                     clipboard_copy(with_space);
-                    utils_sleep_ms(100);
                     clipboard_paste();
                     double clipboard_duration = utils_now() - clipboard_start;
 
@@ -421,8 +428,36 @@ int APP_MAIN(int argc, char** argv) {
 #endif
 #else
 int APP_MAIN(int argc, char** argv) {
+    #ifndef YAKETY_TRAY_APP
+    // Parse command line arguments for CLI version
+    const char* custom_model_path = NULL;
+    if (argc > 1) {
+        if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
+            printf("Usage: %s [model_path | --model <path>]\n", argv[0]);
+            printf("Options:\n");
+            printf("  model_path        Direct path to Whisper model file\n");
+            printf("  --model <path>    Use a specific Whisper model file\n");
+            printf("  -h, --help        Show this help message\n");
+            return 0;
+        }
+        
+        // Check for --model flag
+        for (int i = 1; i < argc - 1; i++) {
+            if (strcmp(argv[i], "--model") == 0) {
+                custom_model_path = argv[i + 1];
+                break;
+            }
+        }
+        
+        // If no --model flag and first arg doesn't start with -, treat it as model path
+        if (!custom_model_path && argv[1][0] != '-') {
+            custom_model_path = argv[1];
+        }
+    }
+    #else
     (void)argc;
     (void)argv;
+    #endif
 #endif
 
     // Initialize logging system
@@ -437,6 +472,14 @@ int APP_MAIN(int argc, char** argv) {
         log_cleanup();
         return 1;
     }
+    
+    #ifndef YAKETY_TRAY_APP
+    // For CLI version, override model path if provided
+    if (custom_model_path) {
+        log_info("Using custom model path: %s", custom_model_path);
+        config_set_string(g_config, "model", custom_model_path);
+    }
+    #endif
 
     // Set up signal handlers
     signal(SIGINT, signal_handler);

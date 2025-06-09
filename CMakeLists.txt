@@ -173,10 +173,10 @@ target_compile_definitions(yakety-app PRIVATE YAKETY_TRAY_APP)
 add_executable(recorder src/recorder.c src/audio.c)
 target_include_directories(recorder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-# Create test_transcription executable
-add_executable(test_transcription src/test_transcription.c ${BUSINESS_SOURCES})
-target_link_libraries(test_transcription PRIVATE platform)
-target_include_directories(test_transcription PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+# Create transcribe executable
+add_executable(transcribe src/transcribe.c ${BUSINESS_SOURCES})
+target_link_libraries(transcribe PRIVATE platform)
+target_include_directories(transcribe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # Link frameworks for recorder
 if(APPLE)
@@ -214,7 +214,7 @@ elseif(WIN32 AND HAS_VULKAN)
 endif()
 
 # Link whisper to all targets that need it
-foreach(target yakety yakety-app test_transcription)
+foreach(target yakety yakety-app transcribe)
     target_link_libraries(${target} PRIVATE ${WHISPER_LIBS})
     target_include_directories(${target} PRIVATE
         ${WHISPER_DIR}
@@ -226,13 +226,13 @@ endforeach()
 
 # Link Metal frameworks for macOS
 if(APPLE AND METAL_FRAMEWORKS)
-    foreach(target yakety yakety-app test_transcription)
+    foreach(target yakety yakety-app transcribe)
         target_link_libraries(${target} PRIVATE ${METAL_FRAMEWORKS})
     endforeach()
 endif()
 
 # Set output directory
-set_target_properties(yakety yakety-app recorder test_transcription PROPERTIES
+set_target_properties(yakety yakety-app recorder transcribe PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin
     RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin
@@ -255,9 +255,9 @@ if(EXISTS ${MENUBAR_ICON_FILE})
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${MENUBAR_ICON_FILE}" "$<TARGET_FILE_DIR:yakety>/menubar.png"
         COMMENT "Copying menubar icon for CLI"
     )
-    add_custom_command(TARGET test_transcription POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${MENUBAR_ICON_FILE}" "$<TARGET_FILE_DIR:test_transcription>/menubar.png"
-        COMMENT "Copying menubar icon for test_transcription"
+    add_custom_command(TARGET transcribe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${MENUBAR_ICON_FILE}" "$<TARGET_FILE_DIR:transcribe>/menubar.png"
+        COMMENT "Copying menubar icon for transcribe"
     )
 endif()
 
@@ -265,7 +265,7 @@ endif()
 if(WIN32)
     # For Windows Debug builds, use Release runtime library to match whisper.cpp
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        foreach(target yakety yakety-app recorder test_transcription platform)
+        foreach(target yakety yakety-app recorder transcribe platform)
             target_compile_options(${target} PRIVATE /MD)
             target_compile_definitions(${target} PRIVATE _ITERATOR_DEBUG_LEVEL=0)
         endforeach()
@@ -290,13 +290,13 @@ elseif(NOT WIN32)
             -fsanitize=undefined
         )
         # Add sanitizer libraries for linking
-        foreach(target yakety yakety-app recorder test_transcription)
+        foreach(target yakety yakety-app recorder transcribe)
             target_link_options(${target} PRIVATE -fsanitize=address -fsanitize=undefined)
         endforeach()
     endif()
 
     # Apply flags to all targets
-    foreach(target yakety yakety-app recorder test_transcription)
+    foreach(target yakety yakety-app recorder transcribe)
         target_compile_options(${target} PRIVATE ${WARNING_FLAGS})
     endforeach()
 endif()
