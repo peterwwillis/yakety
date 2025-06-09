@@ -269,6 +269,33 @@ static void menu_licenses(void) {
         "See LICENSES.md for full details.");
 }
 
+static void menu_configure_hotkey(void) {
+    KeyCombination combo;
+    bool result = dialog_keycombination_capture(
+        "Configure Hotkey",
+        "Click in the box below and press your desired key combination:",
+        &combo
+    );
+    
+    if (result) {
+        char message[128];
+        snprintf(message, sizeof(message), "Hotkey configured!\nKey code: %u\nModifier flags: 0x%x", 
+                combo.keycode, combo.modifier_flags);
+        dialog_info("Hotkey Configured", message);
+        
+        // Update the keylogger to monitor this combination
+        keylogger_set_combination(&combo);
+        
+        // Save to config
+        if (g_config) {
+            config_set_int(g_config, "hotkey_keycode", combo.keycode);
+            config_set_int(g_config, "hotkey_modifiers", combo.modifier_flags);
+            config_save(g_config);
+        }
+    }
+}
+
+
 static void menu_toggle_launch_at_login(void) {
     bool is_enabled = utils_is_launch_at_login_enabled();
     bool success = utils_set_launch_at_login(!is_enabled);
@@ -323,6 +350,8 @@ static void continue_app_initialization(void) {
     menu_add_item(g_menu, "About Yakety", menu_about);
     menu_add_item(g_menu, "Licenses", menu_licenses);
     menu_add_separator(g_menu);
+    menu_add_item(g_menu, "Configure Hotkey", menu_configure_hotkey);
+    menu_add_separator(g_menu);
 
     // Add launch at login toggle and track its index
     const char* launch_label = utils_is_launch_at_login_enabled()
@@ -351,6 +380,23 @@ static void continue_app_initialization(void) {
         if (keylogger_init(on_key_press, on_key_release, g_state) == 0) {
             keylogger_started = true;
             log_info("✅ Keylogger started successfully");
+            
+            // Load saved hotkey from config
+            if (g_config) {
+                KeyCombination default_combo = keylogger_get_fn_combination();
+                KeyCombination saved_combo;
+                saved_combo.keycode = config_get_int(g_config, "hotkey_keycode", default_combo.keycode);
+                saved_combo.modifier_flags = config_get_int(g_config, "hotkey_modifiers", default_combo.modifier_flags);
+                
+                // Only apply if we have a saved config (not defaults)
+                if (config_get_string(g_config, "hotkey_keycode") != NULL) {
+                    keylogger_set_combination(&saved_combo);
+                    log_info("Loaded custom hotkey: keycode=%u, modifiers=0x%x", 
+                            saved_combo.keycode, saved_combo.modifier_flags);
+                } else {
+                    log_info("Using default FN key hotkey");
+                }
+            }
         } else {
             #ifdef __APPLE__
             #ifdef YAKETY_TRAY_APP
@@ -465,6 +511,7 @@ int APP_MAIN(int argc, char** argv) {
     const char* custom_model_path = parse_cli_args(argc, argv);
     #else
     const char* custom_model_path = NULL;
+    (void)custom_model_path; // Suppress unused variable warning
         #ifndef _WIN32
         (void)argc;
         (void)argv;

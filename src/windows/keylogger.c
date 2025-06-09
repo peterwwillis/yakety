@@ -71,3 +71,22 @@ void keylogger_cleanup(void) {
     
     log_info("Keylogger cleaned up");
 }
+
+void keylogger_pause(void) {
+    // TODO: Implement Windows keylogger pause
+}
+
+void keylogger_resume(void) {
+    // TODO: Implement Windows keylogger resume
+}
+
+void keylogger_set_combination(const KeyCombination* combo) {
+    // TODO: Implement Windows custom key combination monitoring
+    (void)combo;
+}
+
+KeyCombination keylogger_get_fn_combination(void) {
+    // Windows doesn't have FN key like macOS, return Right Ctrl equivalent
+    KeyCombination ctrl_combo = {VK_RCONTROL, 0};
+    return ctrl_combo;
+}

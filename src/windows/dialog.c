@@ -556,3 +556,12 @@ bool dialog_confirm(const char* title, const char* message) {
     int result = show_custom_dialog(title, message, MB_YESNO | MB_ICONQUESTION);
     return result == IDYES;
 }
+
+
+bool dialog_keycombination_capture(const char* title, const char* message, KeyCombination* result) {
+    // TODO: Implement Windows key combination capture dialog
+    (void)title;
+    (void)message;
+    (void)result;
+    return false;
+}
