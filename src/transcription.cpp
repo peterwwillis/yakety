@@ -12,9 +12,18 @@ extern "C" {
 #include <fstream>
 #include <thread>
 #include "whisper.h"
+#include "../whisper.cpp/ggml/include/ggml.h"
 
 static struct whisper_context* ctx = NULL;
 static char g_language[16] = "en";  // Default to English
+
+// Custom log callback that suppresses whisper/ggml logs
+static void null_log_callback(enum ggml_log_level level, const char * text, void * user_data) {
+    (void)level;
+    (void)text;
+    (void)user_data;
+    // Do nothing - suppress all whisper/ggml logs
+}
 
 void transcription_set_language(const char* language) {
     if (language && strlen(language) > 0) {
@@ -29,6 +38,9 @@ int transcription_init(const char* model_path) {
         log_error("ERROR: No model path provided\n");
         return -1;
     }
+
+    // Disable whisper/ggml logging
+    ggml_log_set(null_log_callback, NULL);
 
     log_info("🧠 Loading Whisper model: %s\n", model_path);
 
