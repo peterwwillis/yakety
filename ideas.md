@@ -34,6 +34,11 @@
 - [ ] Audio device selection
   - show available input devices in tray, let user pick, store in config.ini, fallback if configured input device
 
+- [ ] **Multi-Display Support**
+  - Show overlay on the currently active display (where mouse/focus is)
+  - Detect active monitor and position overlay accordingly
+  - Update overlay position when user switches displays
+
 ## Bugs
 
 - [x] **Fix Transcription Buffer Overflow**
