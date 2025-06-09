@@ -31,11 +31,15 @@
   - Store command in ~/.yakety/config.ini
   - Use case: custom text formatting, replacements, AI processing, etc.
 
+- [ ] Audio device selection
+  - show available input devices in tray, let user pick, store in config.ini, fallback if configured input device
+
 ## Bugs
 
-- [ ] **Fix Transcription Buffer Overflow**
+- [x] **Fix Transcription Buffer Overflow**
   - Currently passing fixed 1024 char array to transcription
   - Overflow breaks recording (hotkey stops working)
   - Transcription method should return char* or NULL on error
   - Implement internal dynamic buffer that resizes as needed
   - Reuse buffer across transcription calls for efficiency
+- [ ] Test on multi-monitor setups
