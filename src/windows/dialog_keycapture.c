@@ -31,6 +31,8 @@ typedef struct {
     uint32_t current_modifiers;
     uint16_t current_keycode;
     uint16_t last_keycode;
+    bool has_non_modifier;  // Track if a non-modifier key was pressed
+    uint32_t pressed_modifiers;  // Track which modifiers were pressed during capture
     bool is_dark_mode;
     COLORREF bg_color;
     COLORREF text_color;
@@ -513,6 +515,8 @@ static LRESULT CALLBACK KeyCaptureProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
             data->current_modifiers = 0;
             data->current_keycode = 0;
             data->last_keycode = 0;
+            data->has_non_modifier = false;
+            data->pressed_modifiers = 0;
             SetFocus(hwnd);
             InvalidateRect(hwnd, NULL, TRUE);
         }
@@ -551,7 +555,7 @@ static LRESULT CALLBACK KeyCaptureProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
         if (data->capturing) {
             UINT vk = (UINT)wParam;
             
-            // Convert generic modifier keys to specific L/R versions
+            // Convert generic modifier keys to specific L/R versions immediately on key down
             if (vk == VK_CONTROL) {
                 // Check which control key is actually pressed
                 if (GetAsyncKeyState(VK_LCONTROL) & 0x8000) {
@@ -575,15 +579,6 @@ static LRESULT CALLBACK KeyCaptureProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
                 }
             }
             
-            // Update modifiers
-            data->current_modifiers = 0;
-            if (GetKeyState(VK_CONTROL) & 0x8000) data->current_modifiers |= 0x0001;
-            if (GetKeyState(VK_MENU) & 0x8000) data->current_modifiers |= 0x0002;
-            if (GetKeyState(VK_SHIFT) & 0x8000) data->current_modifiers |= 0x0004;
-            if ((GetKeyState(VK_LWIN) & 0x8000) || (GetKeyState(VK_RWIN) & 0x8000)) {
-                data->current_modifiers |= 0x0008;
-            }
-            
             // Check if it's a modifier key
             bool is_modifier = (vk == VK_CONTROL || vk == VK_LCONTROL || vk == VK_RCONTROL ||
                                 vk == VK_MENU || vk == VK_LMENU || vk == VK_RMENU ||
@@ -591,71 +586,11 @@ static LRESULT CALLBACK KeyCaptureProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
                                 vk == VK_LWIN || vk == VK_RWIN);
             
             if (!is_modifier) {
-                // Regular key pressed - capture complete
+                // Non-modifier key pressed
+                data->has_non_modifier = true;
                 data->current_keycode = (uint16_t)vk;
-                data->result->keycode = data->current_keycode;
-                data->result->modifier_flags = data->current_modifiers;
-                data->capturing = false;
-                data->captured = true;
-                EnableWindow(GetDlgItem(hwnd, ID_BUTTON_OK), TRUE);
-                InvalidateRect(hwnd, NULL, TRUE);
-            } else {
-                // Track which specific modifier key for proper display
-                data->last_keycode = (uint16_t)vk;
-                data->current_keycode = 0;
-                InvalidateRect(hwnd, NULL, TRUE);
-            }
-        }
-        return 0;
-    
-    case WM_KEYUP:
-    case WM_SYSKEYUP:
-        if (data->capturing) {
-            UINT vk = (UINT)wParam;
-            
-            // Convert generic modifier keys to specific L/R versions
-            if (vk == VK_CONTROL) {
-                // Use last_keycode if available, otherwise check which was released
-                if (data->last_keycode == VK_LCONTROL || data->last_keycode == VK_RCONTROL) {
-                    vk = data->last_keycode;
-                } else {
-                    // Check which control key was released
-                    if (!(GetAsyncKeyState(VK_LCONTROL) & 0x8000)) {
-                        vk = VK_LCONTROL;
-                    } else if (!(GetAsyncKeyState(VK_RCONTROL) & 0x8000)) {
-                        vk = VK_RCONTROL;
-                    }
-                }
-            } else if (vk == VK_MENU) {
-                if (data->last_keycode == VK_LMENU || data->last_keycode == VK_RMENU) {
-                    vk = data->last_keycode;
-                } else {
-                    if (!(GetAsyncKeyState(VK_LMENU) & 0x8000)) {
-                        vk = VK_LMENU;
-                    } else if (!(GetAsyncKeyState(VK_RMENU) & 0x8000)) {
-                        vk = VK_RMENU;
-                    }
-                }
-            } else if (vk == VK_SHIFT) {
-                if (data->last_keycode == VK_LSHIFT || data->last_keycode == VK_RSHIFT) {
-                    vk = data->last_keycode;
-                } else {
-                    if (!(GetAsyncKeyState(VK_LSHIFT) & 0x8000)) {
-                        vk = VK_LSHIFT;
-                    } else if (!(GetAsyncKeyState(VK_RSHIFT) & 0x8000)) {
-                        vk = VK_RSHIFT;
-                    }
-                }
-            }
-            
-            // Check if it's a modifier key being released
-            bool is_modifier = (vk == VK_CONTROL || vk == VK_LCONTROL || vk == VK_RCONTROL ||
-                                vk == VK_MENU || vk == VK_LMENU || vk == VK_RMENU ||
-                                vk == VK_SHIFT || vk == VK_LSHIFT || vk == VK_RSHIFT ||
-                                vk == VK_LWIN || vk == VK_RWIN);
-            
-            if (is_modifier) {
-                // Update modifiers
+                
+                // Update modifiers at the time of non-modifier key press
                 data->current_modifiers = 0;
                 if (GetKeyState(VK_CONTROL) & 0x8000) data->current_modifiers |= 0x0001;
                 if (GetKeyState(VK_MENU) & 0x8000) data->current_modifiers |= 0x0002;
@@ -664,25 +599,80 @@ static LRESULT CALLBACK KeyCaptureProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
                     data->current_modifiers |= 0x0008;
                 }
                 
-                // If no modifiers are pressed anymore, capture modifier-only combination
-                if (data->current_modifiers == 0 && !data->current_keycode) {
-                    // Use the specific key that was released
-                    if (vk == VK_RCONTROL || vk == VK_LCONTROL || vk == VK_CONTROL) {
-                        // Store the specific control key
-                        data->result->keycode = vk;
-                        data->result->modifier_flags = 0;
-                    } else if (vk == VK_RMENU || vk == VK_LMENU || vk == VK_MENU ||
-                               vk == VK_RSHIFT || vk == VK_LSHIFT || vk == VK_SHIFT ||
-                               vk == VK_LWIN || vk == VK_RWIN) {
-                        // For other single modifiers, store the specific key
-                        data->result->keycode = vk;
-                        data->result->modifier_flags = 0;
-                    } else {
-                        // Shouldn't happen, but fallback
-                        data->result->keycode = 0;
-                        data->result->modifier_flags = 0;
-                    }
-                    
+                // Capture complete with key + modifiers
+                data->result->keycode = data->current_keycode;
+                data->result->modifier_flags = data->current_modifiers;
+                data->capturing = false;
+                data->captured = true;
+                EnableWindow(GetDlgItem(hwnd, ID_BUTTON_OK), TRUE);
+                InvalidateRect(hwnd, NULL, TRUE);
+            } else {
+                // Modifier key pressed - track it
+                data->last_keycode = (uint16_t)vk;
+                
+                // Track that this specific modifier was pressed
+                if (vk == VK_LCONTROL || vk == VK_RCONTROL) {
+                    data->pressed_modifiers |= 0x0001;
+                } else if (vk == VK_LMENU || vk == VK_RMENU) {
+                    data->pressed_modifiers |= 0x0002;
+                } else if (vk == VK_LSHIFT || vk == VK_RSHIFT) {
+                    data->pressed_modifiers |= 0x0004;
+                } else if (vk == VK_LWIN || vk == VK_RWIN) {
+                    data->pressed_modifiers |= 0x0008;
+                }
+                
+                // For display purposes, build current modifier state
+                data->current_modifiers = 0;
+                if ((GetAsyncKeyState(VK_LCONTROL) & 0x8000) || (GetAsyncKeyState(VK_RCONTROL) & 0x8000)) {
+                    data->current_modifiers |= 0x0001;
+                }
+                if ((GetAsyncKeyState(VK_LMENU) & 0x8000) || (GetAsyncKeyState(VK_RMENU) & 0x8000)) {
+                    data->current_modifiers |= 0x0002;
+                }
+                if ((GetAsyncKeyState(VK_LSHIFT) & 0x8000) || (GetAsyncKeyState(VK_RSHIFT) & 0x8000)) {
+                    data->current_modifiers |= 0x0004;
+                }
+                if ((GetAsyncKeyState(VK_LWIN) & 0x8000) || (GetAsyncKeyState(VK_RWIN) & 0x8000)) {
+                    data->current_modifiers |= 0x0008;
+                }
+                
+                InvalidateRect(hwnd, NULL, TRUE);
+            }
+        }
+        return 0;
+    
+    case WM_KEYUP:
+    case WM_SYSKEYUP:
+        if (data->capturing && !data->has_non_modifier) {
+            UINT vk = (UINT)wParam;
+            
+            // Check if it's a modifier key being released
+            bool is_modifier = (vk == VK_CONTROL || vk == VK_LCONTROL || vk == VK_RCONTROL ||
+                                vk == VK_MENU || vk == VK_LMENU || vk == VK_RMENU ||
+                                vk == VK_SHIFT || vk == VK_LSHIFT || vk == VK_RSHIFT ||
+                                vk == VK_LWIN || vk == VK_RWIN);
+            
+            if (is_modifier) {
+                // Update current modifier state
+                data->current_modifiers = 0;
+                if ((GetAsyncKeyState(VK_LCONTROL) & 0x8000) || (GetAsyncKeyState(VK_RCONTROL) & 0x8000)) {
+                    data->current_modifiers |= 0x0001;
+                }
+                if ((GetAsyncKeyState(VK_LMENU) & 0x8000) || (GetAsyncKeyState(VK_RMENU) & 0x8000)) {
+                    data->current_modifiers |= 0x0002;
+                }
+                if ((GetAsyncKeyState(VK_LSHIFT) & 0x8000) || (GetAsyncKeyState(VK_RSHIFT) & 0x8000)) {
+                    data->current_modifiers |= 0x0004;
+                }
+                if ((GetAsyncKeyState(VK_LWIN) & 0x8000) || (GetAsyncKeyState(VK_RWIN) & 0x8000)) {
+                    data->current_modifiers |= 0x0008;
+                }
+                
+                // If all modifiers released, capture the combination
+                if (data->current_modifiers == 0 && data->pressed_modifiers != 0) {
+                    // Store the captured modifier combination
+                    data->result->keycode = 0;  // No main key, just modifiers
+                    data->result->modifier_flags = data->pressed_modifiers;
                     data->capturing = false;
                     data->captured = true;
                     EnableWindow(GetDlgItem(hwnd, ID_BUTTON_OK), TRUE);
@@ -728,6 +718,8 @@ bool dialog_keycombination_capture(const char* title, const char* message, KeyCo
         .current_modifiers = 0,
         .current_keycode = 0,
         .last_keycode = 0,
+        .has_non_modifier = false,
+        .pressed_modifiers = 0,
         .is_dark_mode = is_windows_dark_mode(),
         .button_hover_id = 0
     };
