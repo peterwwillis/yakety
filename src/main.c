@@ -1,3 +1,7 @@
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -268,7 +272,73 @@ static void menu_licenses(void) {
         "- miniaudio by David Reid (Public Domain)\n\n"
         "See LICENSES.md for full details.");
 }
+#endif // YAKETY_TRAY_APP
 
+// Helper to save key combination to config
+static void save_key_combination(Config* config, const KeyCombination* combo) {
+    char buffer[256] = {0};
+    for (int i = 0; i < combo->count; i++) {
+        if (i > 0) strcat(buffer, ";");
+        char pair[32];
+        snprintf(pair, sizeof(pair), "%X:%X", combo->keys[i].code, combo->keys[i].flags);
+        strcat(buffer, pair);
+    }
+    config_set_string(config, "KeyCombo", buffer);
+    
+    // Note: Old format keys will be ignored when new format exists
+}
+
+// Helper to load key combination from config
+static bool load_key_combination(Config* config, KeyCombination* combo) {
+    const char* key_str = config_get_string(config, "KeyCombo");
+    if (key_str) {
+        // Parse new format
+        combo->count = 0;
+        char* copy = strdup(key_str);
+        char* token = strtok(copy, ";");
+        
+        while (token && combo->count < 4) {
+            unsigned int code, flags;
+            if (sscanf(token, "%x:%x", &code, &flags) == 2) {
+                combo->keys[combo->count].code = code;
+                combo->keys[combo->count].flags = flags;
+                combo->count++;
+            }
+            token = strtok(NULL, ";");
+        }
+        free(copy);
+        return combo->count > 0;
+    } else {
+        // Try old format for backwards compatibility
+        uint16_t keycode = config_get_int(config, "hotkey_keycode", 0);
+        uint32_t modifiers = config_get_int(config, "hotkey_modifiers", 0);
+        
+        if (keycode != 0 || modifiers != 0) {
+            // Convert old format to new scan code format
+            // This is a simplified conversion - ideally would map VK codes to scan codes
+            if (keycode == VK_RCONTROL || (keycode == 0 && modifiers == 0x0001)) {
+                // Right Ctrl
+                combo->keys[0].code = 0x1D;
+                combo->keys[0].flags = 1;
+                combo->count = 1;
+            } else if (keycode == VK_LCONTROL) {
+                // Left Ctrl
+                combo->keys[0].code = 0x1D;
+                combo->keys[0].flags = 0;
+                combo->count = 1;
+            } else {
+                // Default to Right Ctrl for unknown
+                combo->keys[0].code = 0x1D;
+                combo->keys[0].flags = 1;
+                combo->count = 1;
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+#ifdef YAKETY_TRAY_APP
 static void menu_configure_hotkey(void) {
     KeyCombination combo;
     bool result = dialog_keycombination_capture(
@@ -278,9 +348,14 @@ static void menu_configure_hotkey(void) {
     );
     
     if (result) {
-        char message[128];
-        snprintf(message, sizeof(message), "Hotkey configured!\nKey code: %u\nModifier flags: 0x%x", 
-                combo.keycode, combo.modifier_flags);
+        // Build display message
+        char message[256] = "Hotkey configured:\n";
+        for (int i = 0; i < combo.count; i++) {
+            char key_info[64];
+            snprintf(key_info, sizeof(key_info), "Key %d: scancode=0x%02X, extended=%d\n", 
+                    i + 1, combo.keys[i].code, combo.keys[i].flags);
+            strcat(message, key_info);
+        }
         dialog_info("Hotkey Configured", message);
         
         // Update the keylogger to monitor this combination
@@ -288,14 +363,14 @@ static void menu_configure_hotkey(void) {
         
         // Save to config
         if (g_config) {
-            config_set_int(g_config, "hotkey_keycode", combo.keycode);
-            config_set_int(g_config, "hotkey_modifiers", combo.modifier_flags);
+            save_key_combination(g_config, &combo);
             config_save(g_config);
         }
     }
 }
+#endif // YAKETY_TRAY_APP
 
-
+#ifdef YAKETY_TRAY_APP
 static void menu_toggle_launch_at_login(void) {
     bool is_enabled = utils_is_launch_at_login_enabled();
     bool success = utils_set_launch_at_login(!is_enabled);
@@ -320,7 +395,7 @@ static void menu_quit(void) {
     g_running = false;
     app_quit();
 }
-#endif
+#endif // YAKETY_TRAY_APP
 
 // Called when app is ready - for both CLI and tray apps
 static void on_app_ready(void) {
@@ -383,17 +458,13 @@ static void continue_app_initialization(void) {
             
             // Load saved hotkey from config
             if (g_config) {
-                KeyCombination default_combo = keylogger_get_fn_combination();
-                KeyCombination saved_combo;
-                saved_combo.keycode = config_get_int(g_config, "hotkey_keycode", default_combo.keycode);
-                saved_combo.modifier_flags = config_get_int(g_config, "hotkey_modifiers", default_combo.modifier_flags);
-                
-                // Only apply if we have a saved config (not defaults)
-                if (config_get_string(g_config, "hotkey_keycode") != NULL) {
-                    keylogger_set_combination(&saved_combo);
-                    log_info("Loaded custom hotkey: keycode=%u, modifiers=0x%x", 
-                            saved_combo.keycode, saved_combo.modifier_flags);
+                KeyCombination combo;
+                if (load_key_combination(g_config, &combo)) {
+                    keylogger_set_combination(&combo);
                 } else {
+                    // Use default
+                    KeyCombination default_combo = keylogger_get_fn_combination();
+                    keylogger_set_combination(&default_combo);
                     #ifdef _WIN32
                     log_info("Using default Right Ctrl hotkey");
                     #else

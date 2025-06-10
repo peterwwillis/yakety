@@ -5,10 +5,16 @@
 
 typedef void (*KeyCallback)(void* userdata);
 
-// Key combination structure using raw key codes and modifier flags
+// Unified key info structure for both platforms
 typedef struct {
-    uint16_t keycode;        // Main key code (0 if modifier-only)
-    uint32_t modifier_flags; // Modifier flags
+    uint32_t code;   // keycode on macOS, scancode on Windows
+    uint32_t flags;  // modifiers on macOS, extended flag (0/1) on Windows
+} KeyInfo;
+
+// Key combination structure supporting multiple keys
+typedef struct {
+    KeyInfo keys[4];  // macOS uses only keys[0], Windows can use multiple
+    int count;        // Number of keys in combination
 } KeyCombination;
 
 int keylogger_init(KeyCallback on_press, KeyCallback on_release, void* userdata);

@@ -6,10 +6,12 @@
 // Entry point macro
 #ifdef _WIN32
     #ifdef YAKETY_TRAY_APP
-        // Forward declarations for Windows types
-        typedef void* HINSTANCE;
-        typedef void* LPSTR;
-        #define WINAPI __stdcall
+        // Forward declarations for Windows types (only if not already included)
+        #ifndef _WINDOWS_
+            typedef void* HINSTANCE;
+            typedef void* LPSTR;
+            #define WINAPI __stdcall
+        #endif
         #define APP_MAIN WinMain
     #else
         #define APP_MAIN main

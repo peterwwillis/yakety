@@ -12,134 +12,73 @@ static void* g_userdata = NULL;
 static bool g_paused = false;
 
 // Key combination tracking
-static KeyCombination g_target_combo = {VK_RCONTROL, 0}; // Default to Right Ctrl
+static KeyCombination g_target_combo = {{0}, 0}; // Will be initialized properly
 static bool g_combo_pressed = false;
-static uint32_t g_current_modifiers = 0;
-static bool g_tracking_modifier_only = false;
+static KeyInfo g_pressed_keys[4] = {{0}, {0}, {0}, {0}};
+static int g_pressed_count = 0;
 
-// Update current modifier state
-static void update_modifiers(void) {
-    g_current_modifiers = 0;
-    if ((GetAsyncKeyState(VK_LCONTROL) & 0x8000) || (GetAsyncKeyState(VK_RCONTROL) & 0x8000)) {
-        g_current_modifiers |= 0x0001;
+// Check if two key infos match
+static bool key_info_matches(const KeyInfo* a, const KeyInfo* b) {
+    return a->code == b->code && a->flags == b->flags;
+}
+
+// Check if a key is currently in our pressed list
+static bool is_key_pressed(DWORD scanCode, DWORD flags) {
+    uint32_t extended = (flags & LLKHF_EXTENDED) ? 1 : 0;
+    for (int i = 0; i < g_pressed_count; i++) {
+        if (g_pressed_keys[i].code == scanCode && g_pressed_keys[i].flags == extended) {
+            return true;
+        }
     }
-    if ((GetAsyncKeyState(VK_LMENU) & 0x8000) || (GetAsyncKeyState(VK_RMENU) & 0x8000)) {
-        g_current_modifiers |= 0x0002;
-    }
-    if ((GetAsyncKeyState(VK_LSHIFT) & 0x8000) || (GetAsyncKeyState(VK_RSHIFT) & 0x8000)) {
-        g_current_modifiers |= 0x0004;
-    }
-    if ((GetAsyncKeyState(VK_LWIN) & 0x8000) || (GetAsyncKeyState(VK_RWIN) & 0x8000)) {
-        g_current_modifiers |= 0x0008;
+    return false;
+}
+
+// Add a key to pressed list
+static void add_pressed_key(DWORD scanCode, DWORD flags) {
+    if (g_pressed_count < 4 && !is_key_pressed(scanCode, flags)) {
+        g_pressed_keys[g_pressed_count].code = scanCode;
+        g_pressed_keys[g_pressed_count].flags = (flags & LLKHF_EXTENDED) ? 1 : 0;
+        g_pressed_count++;
     }
 }
 
-// Check if current state matches target combination
-static bool matches_combination(DWORD vkCode, bool keyDown) {
-    // Special case: Single modifier keys without additional modifiers
-    if (g_target_combo.modifier_flags == 0 && g_target_combo.keycode != 0) {
-        // Direct key match for single modifier keys
-        if (vkCode == g_target_combo.keycode) {
-            return true;
+// Remove a key from pressed list
+static void remove_pressed_key(DWORD scanCode, DWORD flags) {
+    uint32_t extended = (flags & LLKHF_EXTENDED) ? 1 : 0;
+    for (int i = 0; i < g_pressed_count; i++) {
+        if (g_pressed_keys[i].code == scanCode && g_pressed_keys[i].flags == extended) {
+            // Shift remaining keys
+            for (int j = i; j < g_pressed_count - 1; j++) {
+                g_pressed_keys[j] = g_pressed_keys[j + 1];
+            }
+            g_pressed_count--;
+            break;
         }
-        
-        // Handle generic VK_CONTROL matching specific L/R versions
-        if (g_target_combo.keycode == VK_CONTROL && 
-            (vkCode == VK_LCONTROL || vkCode == VK_RCONTROL)) {
-            return true;
-        }
-        if ((g_target_combo.keycode == VK_LCONTROL || g_target_combo.keycode == VK_RCONTROL) &&
-            vkCode == VK_CONTROL) {
-            return true;
-        }
-        
-        // Handle generic VK_MENU matching specific L/R versions
-        if (g_target_combo.keycode == VK_MENU && 
-            (vkCode == VK_LMENU || vkCode == VK_RMENU)) {
-            return true;
-        }
-        if ((g_target_combo.keycode == VK_LMENU || g_target_combo.keycode == VK_RMENU) &&
-            vkCode == VK_MENU) {
-            return true;
-        }
-        
-        // Handle generic VK_SHIFT matching specific L/R versions
-        if (g_target_combo.keycode == VK_SHIFT && 
-            (vkCode == VK_LSHIFT || vkCode == VK_RSHIFT)) {
-            return true;
-        }
-        if ((g_target_combo.keycode == VK_LSHIFT || g_target_combo.keycode == VK_RSHIFT) &&
-            vkCode == VK_SHIFT) {
-            return true;
-        }
-        
+    }
+}
+
+// Check if current pressed keys match the target combination
+static bool check_combination_match(void) {
+    // Must have exact number of keys
+    if (g_pressed_count != g_target_combo.count) {
         return false;
     }
     
-    update_modifiers();
-    
-    // Check modifier-only combinations
-    if (g_target_combo.keycode == 0) {
-        // Check if current modifiers match the target
-        if (g_current_modifiers == g_target_combo.modifier_flags && g_current_modifiers != 0) {
-            // All required modifiers are pressed
-            if (keyDown) {
-                // Check if this is a modifier key
-                bool is_modifier = (vkCode == VK_CONTROL || vkCode == VK_LCONTROL || vkCode == VK_RCONTROL ||
-                                    vkCode == VK_MENU || vkCode == VK_LMENU || vkCode == VK_RMENU ||
-                                    vkCode == VK_SHIFT || vkCode == VK_LSHIFT || vkCode == VK_RSHIFT ||
-                                    vkCode == VK_LWIN || vkCode == VK_RWIN);
-                
-                if (is_modifier && !g_combo_pressed) {
-                    // All modifiers are now pressed - trigger press
-                    g_combo_pressed = true;
-                    if (g_on_press) {
-                        g_on_press(g_userdata);
-                    }
-                } else if (!is_modifier) {
-                    // Non-modifier key pressed while modifiers held, not our combo
-                    if (g_combo_pressed) {
-                        g_combo_pressed = false;
-                        if (g_on_release) {
-                            g_on_release(g_userdata);
-                        }
-                    }
-                }
-            }
-        } else if (g_combo_pressed && !keyDown) {
-            // Check if we're releasing one of the required modifiers
-            bool is_target_modifier = false;
-            if ((g_target_combo.modifier_flags & 0x0001) && 
-                (vkCode == VK_CONTROL || vkCode == VK_LCONTROL || vkCode == VK_RCONTROL)) {
-                is_target_modifier = true;
-            } else if ((g_target_combo.modifier_flags & 0x0002) && 
-                       (vkCode == VK_MENU || vkCode == VK_LMENU || vkCode == VK_RMENU)) {
-                is_target_modifier = true;
-            } else if ((g_target_combo.modifier_flags & 0x0004) && 
-                       (vkCode == VK_SHIFT || vkCode == VK_LSHIFT || vkCode == VK_RSHIFT)) {
-                is_target_modifier = true;
-            } else if ((g_target_combo.modifier_flags & 0x0008) && 
-                       (vkCode == VK_LWIN || vkCode == VK_RWIN)) {
-                is_target_modifier = true;
-            }
-            
-            if (is_target_modifier) {
-                // One of our modifiers is being released - trigger release
-                g_combo_pressed = false;
-                if (g_on_release) {
-                    g_on_release(g_userdata);
-                }
+    // Check if all target keys are pressed
+    for (int i = 0; i < g_target_combo.count; i++) {
+        bool found = false;
+        for (int j = 0; j < g_pressed_count; j++) {
+            if (key_info_matches(&g_target_combo.keys[i], &g_pressed_keys[j])) {
+                found = true;
+                break;
             }
         }
-        return false;
+        if (!found) {
+            return false;
+        }
     }
     
-    // Regular key + modifier combination
-    if (vkCode == g_target_combo.keycode) {
-        return g_current_modifiers == g_target_combo.modifier_flags;
-    }
-    
-    return false;
+    return true;
 }
 
 // Low-level keyboard hook procedure
@@ -149,49 +88,36 @@ LRESULT CALLBACK keyboard_proc(int nCode, WPARAM wParam, LPARAM lParam) {
         bool keyDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
         bool keyUp = (wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
         
-        // Convert generic VK codes to specific L/R versions based on extended key flag
-        DWORD vkCode = kbdStruct->vkCode;
-        DWORD origVkCode = vkCode;
-        if (vkCode == VK_CONTROL) {
-            vkCode = (kbdStruct->flags & LLKHF_EXTENDED) ? VK_RCONTROL : VK_LCONTROL;
-        } else if (vkCode == VK_MENU) {
-            vkCode = (kbdStruct->flags & LLKHF_EXTENDED) ? VK_RMENU : VK_LMENU;
-        } else if (vkCode == VK_SHIFT) {
-            // Shift keys need scan code check
-            vkCode = (kbdStruct->scanCode == 0x36) ? VK_RSHIFT : VK_LSHIFT;
-        }
-        
-        // Debug log for modifier keys (commented out for production)
-        /*
-        if (keyDown && (origVkCode == VK_CONTROL || origVkCode == VK_MENU || origVkCode == VK_SHIFT ||
-                        vkCode == VK_LCONTROL || vkCode == VK_RCONTROL || 
-                        vkCode == VK_LMENU || vkCode == VK_RMENU ||
-                        vkCode == VK_LSHIFT || vkCode == VK_RSHIFT)) {
-            log_info("Key pressed: orig=0x%02X, converted=0x%02X, extended=%d, scanCode=0x%02X, target=0x%02X",
-                     origVkCode, vkCode, (kbdStruct->flags & LLKHF_EXTENDED) ? 1 : 0, 
-                     kbdStruct->scanCode, g_target_combo.keycode);
-        }
-        */
-        
-        // For modifier-only combinations, matches_combination handles the callbacks
-        if (g_target_combo.keycode == 0) {
-            matches_combination(vkCode, keyDown);
-        } else {
-            // For regular key combinations
-            if (matches_combination(vkCode, keyDown)) {
-                if (keyDown && !g_combo_pressed) {
-                    g_combo_pressed = true;
-                    if (g_on_press) {
-                        g_on_press(g_userdata);
-                    }
-                } else if (keyUp && g_combo_pressed) {
-                    g_combo_pressed = false;
-                    if (g_on_release) {
-                        g_on_release(g_userdata);
+        if (keyDown) {
+            // Add key to pressed list
+            add_pressed_key(kbdStruct->scanCode, kbdStruct->flags);
+            
+            // Check if combination is now complete
+            if (check_combination_match() && !g_combo_pressed) {
+                g_combo_pressed = true;
+                if (g_on_press) {
+                    g_on_press(g_userdata);
+                }
+            }
+        } else if (keyUp) {
+            // Check if we're releasing a key from our combination
+            bool was_combo_key = false;
+            if (g_combo_pressed) {
+                uint32_t extended = (kbdStruct->flags & LLKHF_EXTENDED) ? 1 : 0;
+                for (int i = 0; i < g_target_combo.count; i++) {
+                    if (g_target_combo.keys[i].code == kbdStruct->scanCode && 
+                        g_target_combo.keys[i].flags == extended) {
+                        was_combo_key = true;
+                        break;
                     }
                 }
-            } else if (keyUp && g_combo_pressed) {
-                // Key combination broken (modifier released while key still held)
+            }
+            
+            // Remove key from pressed list
+            remove_pressed_key(kbdStruct->scanCode, kbdStruct->flags);
+            
+            // If we released a combo key, trigger release
+            if (was_combo_key && g_combo_pressed) {
                 g_combo_pressed = false;
                 if (g_on_release) {
                     g_on_release(g_userdata);
@@ -233,8 +159,7 @@ void keylogger_cleanup(void) {
     g_on_release = NULL;
     g_userdata = NULL;
     g_combo_pressed = false;
-    g_current_modifiers = 0;
-    g_tracking_modifier_only = false;
+    g_pressed_count = 0;
     
     log_info("Keylogger cleaned up");
 }
@@ -253,15 +178,23 @@ void keylogger_set_combination(const KeyCombination* combo) {
     if (combo) {
         g_target_combo = *combo;
         g_combo_pressed = false;
-        g_tracking_modifier_only = false;
+        g_pressed_count = 0;
         
-        log_info("Keylogger combination set: keycode=%u, modifiers=0x%04X", 
-                 combo->keycode, combo->modifier_flags);
+        // Log the combination for debugging
+        log_info("Keylogger combination set with %d keys:", combo->count);
+        for (int i = 0; i < combo->count; i++) {
+            log_info("  Key %d: scancode=0x%02X, extended=%d", 
+                     i + 1, combo->keys[i].code, combo->keys[i].flags);
+        }
     }
 }
 
 KeyCombination keylogger_get_fn_combination(void) {
     // Windows doesn't have FN key like macOS, return Right Ctrl as default
-    KeyCombination ctrl_combo = {VK_RCONTROL, 0};
+    // Right Ctrl: scancode 0x1D with extended flag
+    KeyCombination ctrl_combo = {
+        .keys = {{0x1D, 1}},  // Right Ctrl
+        .count = 1
+    };
     return ctrl_combo;
 }
