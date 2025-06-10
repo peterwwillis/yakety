@@ -30,7 +30,6 @@ static char g_config_path[1024] = {0};
 
 static void create_default_preferences(void) {
     // Add default settings
-    preferences_set_bool("show_notifications", true);
     preferences_set_bool("launch_at_login", false);
     preferences_set_string("model", "");  // Empty means use default search
     preferences_set_string("language", "en");  // Default to English for low latency

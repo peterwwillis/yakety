@@ -17,10 +17,10 @@ Yakety uses a clean modular architecture that separates platform-specific code f
 - **`clipboard`** - Copy and paste operations
 - **`overlay`** - On-screen text overlay
 - **`dialog`** - Message boxes and alerts
-- **`menu`** - System tray/menubar management
-- **`keylogger`** - Keyboard event monitoring
-- **`app`** - Application lifecycle management
-- **`utils`** - Platform utilities (time, sleep, paths)
+- **`menu`** - System tray/menubar management (singleton pattern)
+- **`keylogger`** - Keyboard event monitoring (singleton pattern)
+- **`app`** - Application lifecycle management with atomic state
+- **`utils`** - Platform utilities (time, sleep, paths, atomic operations)
 
 ### Business Logic Modules
 
@@ -38,10 +38,12 @@ The CMake build system creates:
 ## Key Design Principles
 
 1. **No Platform Code in Business Logic** - All platform operations go through module interfaces
-2. **Single Source Truth** - One `main.c` for both app types using conditional compilation
+2. **Single Source Truth** - One `main.c` for both app types using `APP_ENTRY_POINT` macro
 3. **Clean Interfaces** - Well-defined module APIs with no platform leakage
-4. **Consistent Patterns** - All modules follow similar initialization/cleanup patterns
-5. **Unified Callbacks** - Both CLI and tray apps use the same `on_ready` callback for initialization
+4. **Singleton Patterns** - Global state managed through clean singleton APIs (menu, keylogger)
+5. **Thread Safety** - Atomic operations for cross-thread state management
+6. **Robust Error Handling** - Proper error propagation and cleanup on failure
+7. **Platform-Agnostic Entry Points** - `APP_ENTRY_POINT` handles all platform variations automatically
 
 ## Adding New Platforms
 
@@ -52,19 +54,83 @@ To add a new platform (e.g., Linux):
 3. Update CMakeLists.txt to include the new platform sources
 4. No changes needed to business logic or main.c
 
+## Entry Point Architecture
+
+The `APP_ENTRY_POINT` macro in `app.h` provides a clean abstraction for platform-specific entry points:
+
+```c
+// In main.c - simple, clean entry point
+int app_main(int argc, char** argv, bool is_console) {
+    // Main application logic here
+}
+
+APP_ENTRY_POINT  // Expands to platform-specific main/WinMain
+```
+
+**Platform Expansions:**
+- **Windows Tray**: `WinMain()` → `app_main(0, NULL, false)`
+- **Windows CLI**: `main()` → `app_main(argc, argv, true)`
+- **macOS Tray**: `main()` → `app_main(0, NULL, false)`
+- **macOS CLI**: `main()` → `app_main(argc, argv, true)`
+
+## Singleton Pattern Implementation
+
+Key modules use singleton patterns for clean global state management:
+
+### Menu System
+```c
+// Clean singleton API
+int menu_init(void);           // Initialize with default items
+int menu_show(void);           // Show in system tray/menubar
+void menu_hide(void);          // Hide menu
+void menu_update_item(int index, const char* title);  // Update item by index
+void menu_cleanup(void);       // Cleanup resources
+```
+
+### Keylogger System
+```c
+// Singleton with struct-based state (Windows)
+typedef struct {
+    HHOOK keyboard_hook;
+    KeyCallback on_press;
+    KeyCallback on_release;
+    void* userdata;
+    bool paused;
+    KeyCombination target_combo;
+    // ... other state
+} KeyloggerState;
+```
+
+### Application State
+```c
+// Atomic state management
+bool app_is_running(void);     // Thread-safe running state check
+void app_quit(void);           // Thread-safe quit operation
+bool app_is_console(void);     // Application type query
+```
+
+## Thread Safety
+
+The architecture ensures thread safety through:
+
+1. **Atomic Operations** - `utils_atomic_read_bool()` / `utils_atomic_write_bool()`
+2. **Main Thread Operations** - Keyboard hooks and UI operations run on main thread
+3. **Background Processing** - Model loading and transcription on worker threads
+4. **Proper Synchronization** - Thread-safe callbacks and state updates
+
 ## Module Dependencies
 
 ```
 main.c
-  ├── app.h (lifecycle)
+  ├── app.h (lifecycle with atomic state)
   ├── logging.h (output)
   ├── audio.h (recording)
   ├── transcription.h (speech-to-text)
-  ├── keylogger.h (hotkey monitoring)
+  ├── keylogger.h (singleton hotkey monitoring)
   ├── clipboard.h (paste results)
   ├── overlay.h (status display)
-  ├── utils.h (timing, paths)
-  └── menu.h (tray app only)
+  ├── utils.h (timing, paths, atomic ops)
+  └── menu.h (singleton tray management)
       └── dialog.h (menu actions)
 ```
 
@@ -75,17 +141,17 @@ main.c
 - `clipboard.m` - NSPasteboard + CGEvent simulation
 - `overlay.m` - NSWindow overlay
 - `dialog.m` - NSAlert with accessibility permission handling
-- `menu.m` - NSStatusItem with proper retention
+- `menu.m` - NSStatusItem singleton with proper retention and error handling
 - `keylogger.c` - CGEventTap with FN key detection via flags
-- `app.m` - NSApplication with unified run loop handling
-- `utils.m` - Foundation utilities including accessibility settings
+- `app.m` - NSApplication with atomic state management and unified run loop
+- `utils.m` - Foundation utilities including accessibility settings and atomic operations
 
 ### Windows (`platform.lib`)
 - `logging.c` - OutputDebugString for GUI, printf for console
 - `clipboard.c` - Windows clipboard API + SendInput
 - `overlay.c` - Layered window
-- `dialog.c` - MessageBox
-- `menu.c` - System tray API
-- `keylogger.c` - Low-level keyboard hook
-- `app.c` - Windows message pump
-- `utils.c` - Windows timer and file APIs
+- `dialog.c` - MessageBox with key combination capture support
+- `menu.c` - System tray singleton with dark mode support and proper error handling
+- `keylogger.c` - Low-level keyboard hook with struct-based state management
+- `app.c` - Windows message pump with atomic state management
+- `utils.c` - Windows timer, file APIs, and atomic operations

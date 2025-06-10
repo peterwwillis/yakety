@@ -9,9 +9,11 @@ A voice-to-text input tool that works in any application. Hold a hotkey to recor
 - 🔒 **Privacy First** - All processing happens on your device
 - ⚡ **GPU Accelerated** - Metal on macOS, Vulkan on Windows (optional)
 - 🖥️ **Cross-Platform** - macOS and Windows support
-- ⚙️ **Configurable** - Custom model paths, notification preferences
+- ⚙️ **Configurable** - Custom model paths, customizable hotkeys, launch at login
 - 📝 **File Logging** - Automatic log rotation with debugging info
 - 🔄 **Smart Model Loading** - Automatic fallback to base model if custom model fails
+- 🏗️ **Modern Architecture** - Clean singleton patterns with robust error handling
+- 🔧 **Thread-Safe** - Proper atomic operations for cross-thread communication
 
 ## Prerequisites
 
@@ -166,13 +168,12 @@ Yakety stores its configuration in an INI file:
 # Path to custom Whisper model (optional)
 model = /path/to/your/model.bin
 
-# Show notification overlays (true/false)
-show_notifications = true
-
 # Launch at login (true/false)
 launch_at_login = false
 
 # Custom hotkey configuration (automatically saved when changed via GUI)
+# On macOS: Fn key = keycode 63, modifiers 8388608
+# On Windows: Right Ctrl = scancode 29, extended flag 1
 hotkey_keycode = 0
 hotkey_modifiers = 8388608
 ```

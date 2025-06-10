@@ -324,8 +324,6 @@ void menu_destroy(MenuSystem* menu) {
         g_tray_menu = NULL;
     }
     
-    g_menu_showing = false;
-    
     // Free menu item titles
     for (int i = 0; i < menu->item_count; i++) {
         if (menu->items[i].title) {

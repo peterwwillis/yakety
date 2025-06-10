@@ -233,9 +233,7 @@ static void on_app_ready(void) {
     log_info("on_app_ready called - starting model loading (%.0f ms since app start)", utils_now() * 1000.0);
 
     // Show loading overlay
-    if (preferences_get_bool("show_notifications", true)) {
-        overlay_show("Loading model");
-    }
+    overlay_show("Loading model");
 
     // Start loading model asynchronously
     utils_execute_async(load_model_async, NULL, on_model_loaded);
