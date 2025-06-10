@@ -118,6 +118,153 @@ The architecture ensures thread safety through:
 3. **Background Processing** - Model loading and transcription on worker threads
 4. **Proper Synchronization** - Thread-safe callbacks and state updates
 
+## Blocking Async Pattern
+
+Yakety implements a unique "blocking async" pattern that combines the simplicity of synchronous code with responsive UI:
+
+### Traditional Callback Approach (Complex)
+```c
+// Complex callback chain for model loading
+utils_execute_async(load_model_async, NULL, on_model_loaded);
+  -> on_model_loaded checks success
+    -> if failure: utils_execute_main_thread(3000, delayed_retry, NULL)
+      -> delayed_retry calls utils_execute_async again
+    -> if success: continue_app_initialization()
+```
+
+### Blocking Async Approach (Simple)
+```c
+// Clean sequential code that keeps UI responsive
+static void app_initialization_blocking(void) {
+    overlay_show("Loading model");
+    
+    // This blocks BUT keeps UI responsive via event pumping!
+    void* result = utils_execute_async_blocking(load_model_async, NULL);
+    
+    if (!result && !g_is_fallback_attempt) {
+        overlay_show_error("Falling back to base model");
+        g_is_fallback_attempt = true;
+        
+        // Responsive sleep - UI stays alive
+        utils_sleep_responsive(3000);
+        
+        result = utils_execute_async_blocking(load_model_async, NULL);
+    }
+    
+    if (!result) {
+        overlay_show_error("Failed to load model");
+        utils_sleep_responsive(3000);
+        app_quit();
+        return;
+    }
+    
+    overlay_hide();
+    continue_app_initialization();
+}
+```
+
+### How Event Pumping Works
+
+The blocking async functions maintain UI responsiveness by continuously processing platform events:
+
+**macOS Implementation:**
+```objc
+while (!ctx.completed) {
+    // Process UI events with short timeout
+    NSEvent* event = [NSApp nextEventMatchingMask:NSEventMaskAny
+                                       untilDate:[NSDate dateWithTimeIntervalSinceNow:0.001]
+                                          inMode:NSDefaultRunLoopMode
+                                         dequeue:YES];
+    if (event) {
+        [NSApp sendEvent:event];  // Keep overlays updating, handle quit, etc.
+    }
+    
+    if (!app_is_running()) break;  // Respect quit requests
+    usleep(100);  // Small yield
+}
+```
+
+**Windows Implementation:**
+```c
+while (InterlockedOr(&ctx.completed, 0) == 0) {
+    MSG msg;
+    if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);  // Keep UI responsive
+    }
+    
+    if (!app_is_running()) break;  // Respect quit requests
+    Sleep(1);  // Small yield
+}
+```
+
+### Benefits
+
+1. **Sequential Logic** - No callback spaghetti, reads like synchronous code
+2. **UI Responsiveness** - Overlays update, user can quit, tray icon works
+3. **Error Handling** - Clean if/else flow instead of nested callbacks
+4. **Debugging** - Stack traces show the actual flow, not callback indirection
+5. **Maintainability** - Easy to understand and modify the initialization sequence
+
+### API Functions
+
+- `app_execute_async_blocking(work_fn, arg)` - Execute async work, block with event pumping
+- `app_sleep_responsive(milliseconds)` - Sleep while keeping UI responsive
+
+This pattern is particularly useful for initialization sequences, file operations, or any async work where you want the simplicity of blocking code without freezing the UI.
+
+## Cross-Platform Main Thread Dispatching
+
+### Problem
+
+Different macOS app types require different main thread dispatching approaches:
+- **GUI Apps**: Use `dispatch_async(dispatch_get_main_queue())` which integrates with NSApp event processing
+- **Console Apps**: Need `CFRunLoopPerformBlock()` + `CFRunLoopWakeUp()` to work with manual `CFRunLoopRunInMode()` calls
+
+### Solution: `app_dispatch_main()`
+
+A centralized dispatching function that automatically chooses the right method:
+
+```c
+// In src/mac/dispatch.h
+void app_dispatch_main(void (^block)(void));
+
+// Usage throughout macOS modules
+app_dispatch_main(^{
+    // This block runs on main thread using the optimal method
+    overlay_window.alpha = 1.0;
+});
+```
+
+### Implementation
+
+```c
+void app_dispatch_main(void (^block)(void)) {
+    if (app_is_console()) {
+        // For console apps: CFRunLoop integration
+        CFRunLoopPerformBlock(CFRunLoopGetMain(), kCFRunLoopCommonModes, block);
+        CFRunLoopWakeUp(CFRunLoopGetMain());
+    } else {
+        // For GUI apps: GCD integration  
+        dispatch_async(dispatch_get_main_queue(), block);
+    }
+}
+```
+
+### Benefits
+
+1. **Automatic Selection** - No need for app type checking in every module
+2. **Code Consistency** - All macOS modules use the same dispatching API
+3. **Maintainability** - Dispatch logic centralized in one location
+4. **Performance** - Each app type uses the optimal scheduling method
+
+### Used By
+
+- `utils.m` - Async work completion callbacks
+- `overlay.m` - All UI update operations  
+- `menu.m` - Menu item updates
+- Any future macOS modules requiring main thread execution
+
 ## Module Dependencies
 
 ```
@@ -145,6 +292,7 @@ main.c
 - `keylogger.c` - CGEventTap with FN key detection via flags
 - `app.m` - NSApplication with atomic state management and unified run loop
 - `utils.m` - Foundation utilities including accessibility settings and atomic operations
+- `dispatch.m` - Centralized main thread dispatching that chooses optimal method
 
 ### Windows (`platform.lib`)
 - `logging.c` - OutputDebugString for GUI, printf for console

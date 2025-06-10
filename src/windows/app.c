@@ -186,3 +186,73 @@ bool app_is_console(void) {
 bool app_is_running(void) {
     return utils_atomic_read_bool(&g_config.running);
 }
+
+// Blocking async execution with event pumping
+typedef struct {
+    volatile LONG completed;
+    void* result;
+} BlockingAsyncContext;
+
+// Global context for the blocking callback (Windows doesn't have closures)
+static BlockingAsyncContext* g_blocking_ctx = NULL;
+
+static void blocking_completion_callback(void* result) {
+    if (g_blocking_ctx) {
+        g_blocking_ctx->result = result;
+        InterlockedExchange(&g_blocking_ctx->completed, 1);
+    }
+}
+
+void* app_execute_async_blocking(async_work_fn work, void* arg) {
+    if (g_config.is_console) {
+        // For console apps, just call the work function directly
+        // No need for async since console apps don't have UI to keep responsive
+        return work(arg);
+    }
+    
+    // For GUI apps, use the async approach with message pumping
+    BlockingAsyncContext ctx = {0, NULL};
+    g_blocking_ctx = &ctx;  // Set global context
+    
+    // Start the async work
+    utils_execute_async(work, arg, blocking_completion_callback);
+    
+    // Pump messages until completion
+    while (InterlockedOr(&ctx.completed, 0) == 0 && app_is_running()) {
+        MSG msg;
+        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+        
+        // Small yield to prevent burning CPU
+        Sleep(1);
+    }
+    
+    g_blocking_ctx = NULL;  // Clear global context
+    return ctx.result;
+}
+
+void app_sleep_responsive(int milliseconds) {
+    if (g_config.is_console) {
+        // For console apps, just sleep normally - no UI to keep responsive
+        Sleep(milliseconds);
+        return;
+    }
+    
+    // For GUI apps, sleep while keeping UI responsive
+    DWORD start_time = GetTickCount();
+    DWORD target_time = start_time + milliseconds;
+    
+    while (GetTickCount() < target_time && app_is_running()) {
+        // Process messages to keep UI responsive
+        MSG msg;
+        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+        
+        // Small yield
+        Sleep(1);
+    }
+}

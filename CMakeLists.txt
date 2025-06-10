@@ -53,6 +53,7 @@ if(APPLE)
         src/mac/keylogger.c
         src/mac/app.m
         src/mac/utils.m
+        src/mac/dispatch.m
         src/preferences.c
     )
     target_link_libraries(platform PUBLIC ${PLATFORM_FRAMEWORKS})

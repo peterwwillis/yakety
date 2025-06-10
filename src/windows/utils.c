@@ -437,3 +437,4 @@ void utils_atomic_write_int(int* ptr, int value) {
     LONG* long_ptr = (LONG*)ptr;
     InterlockedExchange(long_ptr, (LONG)value);
 }
+

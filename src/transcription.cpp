@@ -41,6 +41,7 @@ int transcription_init(const char* model_path) {
 
     // Disable whisper/ggml logging
     ggml_log_set(null_log_callback, NULL);
+    whisper_log_set(null_log_callback, NULL);
 
     log_info("🧠 Loading Whisper model: %s\n", model_path);
 
@@ -93,7 +94,7 @@ char* transcription_process(const float* audio_data, int n_samples, int sample_r
         return NULL;
     }
 
-    log_info("🧠 Transcribing %d audio samples (%.2f seconds) using language: %s\n", 
+    log_info("🧠 Transcribing %d audio samples (%.2f seconds) using language: %s\n",
              n_samples, (float)n_samples / 16000.0f, g_language);
 
     double total_start = utils_now();

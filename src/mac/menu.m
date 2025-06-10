@@ -3,6 +3,7 @@
 #include "../dialog.h"
 #include "../logging.h"
 #include "../utils.h"
+#include "dispatch.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -247,7 +248,7 @@ void menu_update_item(int index, const char* new_title) {
     
     // If menu is currently showing, update the actual menu item
     if (g_menu_showing && statusMenu) {
-        dispatch_async(dispatch_get_main_queue(), ^{
+        app_dispatch_main(^{
             NSMenuItem* item = [statusMenu itemAtIndex:index];
             if (item && ![item isSeparatorItem]) {
                 [item setTitle:[NSString stringWithUTF8String:new_title]];

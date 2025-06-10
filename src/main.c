@@ -16,10 +16,12 @@
 #include "preferences.h"
 #include "menu.h"
 
-#ifdef YAKETY_TRAY_APP
 #include "dialog.h"
-#endif
 
+// Constants
+#define RETRY_DELAY_MS 3000
+#define PERMISSION_RETRY_DELAY_MS 500
+#define MIN_RECORDING_DURATION 0.1
 
 typedef struct {
     bool recording;
@@ -29,18 +31,85 @@ typedef struct {
 static AppState* g_state = NULL;
 
 // Forward declarations
-static void continue_app_initialization(void);
-static void on_model_loaded(void* result);
-static bool g_is_fallback_attempt = false;
-
-// Callback data structures
-typedef struct {
-    bool is_error;
-} DelayedRetryData;
+static void* load_model_async(void* arg);
+static void on_key_press(void* userdata);
+static void on_key_release(void* userdata);
 
 static void signal_handler(int sig) {
     (void)sig;
     app_quit();
+}
+
+// Helper function to extract filename from path
+static const char* get_filename_from_path(const char* path) {
+    if (!path) return "unknown";
+
+    const char* filename = strrchr(path, '/');
+    if (!filename) filename = strrchr(path, '\\');
+    if (filename) filename++; else filename = path;
+    return filename;
+}
+
+// Model loading with fallback logic
+static bool load_model_with_fallback(void) {
+    log_info("Starting model loading at %.3f seconds", utils_now());
+
+    overlay_show("Loading model");
+
+    // Try to load the model (this blocks but keeps UI responsive)
+    void* result = app_execute_async_blocking(load_model_async, NULL);
+
+    if (!result) {
+        // First failure - try fallback to base model
+        const char* failed_model = preferences_get_string("model");
+        char fallback_msg[256];
+
+        if (failed_model && strlen(failed_model) > 0) {
+            const char* filename = get_filename_from_path(failed_model);
+            snprintf(fallback_msg, sizeof(fallback_msg),
+                    "Failed to load %s, falling back to base model", filename);
+        } else {
+            snprintf(fallback_msg, sizeof(fallback_msg),
+                    "Failed to load model, falling back to base model");
+        }
+
+        overlay_show_error(fallback_msg);
+
+        // Clear the model from preferences to use default search
+        preferences_set_string("model", "");
+        preferences_save();
+
+        // Wait, then try again with base model
+        app_sleep_responsive(RETRY_DELAY_MS);
+
+        overlay_show("Loading base model");
+        result = app_execute_async_blocking(load_model_async, NULL);
+
+        if (!result) {
+            // Final failure - show error and quit
+            const char* model_path = utils_get_model_path();
+            char error_msg[256];
+
+            if (model_path) {
+                const char* filename = get_filename_from_path(model_path);
+                snprintf(error_msg, sizeof(error_msg), "Failed to load %s", filename);
+            } else {
+                snprintf(error_msg, sizeof(error_msg), "Model not found");
+            }
+
+            overlay_show_error(error_msg);
+            app_sleep_responsive(RETRY_DELAY_MS);
+            overlay_hide();
+            app_quit();
+            return false;
+        }
+    }
+
+    // Model loaded successfully
+    log_info("Model loaded successfully at %.3f seconds", utils_now());
+    app_sleep_responsive(4000);
+    overlay_hide();
+    return true;
 }
 
 // Async model loading work function
@@ -72,79 +141,166 @@ static void* load_model_async(void* arg) {
     return (void*)1; // Return 1 for success
 }
 
-// Callback for delayed retry
-static void delayed_retry_callback(void* arg) {
-    (void)arg;
-    overlay_show("Loading base model");
-    utils_execute_async(load_model_async, NULL, on_model_loaded);
-}
-
-// Callback for delayed quit
-static void delayed_quit_callback(void* arg) {
-    (void)arg;
-    overlay_hide();
-    app_quit();
-}
-
-// Called when model loading completes
-static void on_model_loaded(void* result) {
-    bool success = (intptr_t)result != 0;
-
-    log_info("Model loading completed at %.3f seconds (success=%d)", utils_now(), success);
-
-    if (!success) {
-        if (!g_is_fallback_attempt) {
-            // First failure - try fallback to base model
-            const char* failed_model = preferences_get_string("model");
-            char fallback_msg[256];
-
-            if (failed_model && strlen(failed_model) > 0) {
-                // Extract filename for message
-                const char* filename = strrchr(failed_model, '/');
-                if (!filename) filename = strrchr(failed_model, '\\');
-                if (filename) filename++; else filename = failed_model;
-                snprintf(fallback_msg, sizeof(fallback_msg),
-                        "Failed to load %s, falling back to base model", filename);
-            } else {
-                snprintf(fallback_msg, sizeof(fallback_msg),
-                        "Failed to load model, falling back to base model");
-            }
-
-            // Show fallback message
-            overlay_show_error(fallback_msg);
-
-            // Clear the model from preferences to use default search
-            preferences_set_string("model", "");
-            preferences_save();
-
-            // Set fallback flag and try again after delay
-            g_is_fallback_attempt = true;
-            utils_execute_main_thread(3000, delayed_retry_callback, NULL);
-            return;
-        } else {
-            // Fallback also failed - show error and quit
-            const char* model_path = utils_get_model_path();
-            char error_msg[256];
-            if (model_path) {
-                const char* filename = strrchr(model_path, '/');
-                if (!filename) filename = strrchr(model_path, '\\');
-                if (filename) filename++; else filename = model_path;
-                snprintf(error_msg, sizeof(error_msg), "Failed to load %s", filename);
-            } else {
-                snprintf(error_msg, sizeof(error_msg), "Model not found");
-            }
-
-            overlay_show_error(error_msg);
-            utils_execute_main_thread(3000, delayed_quit_callback, NULL);
-            return;
-        }
+// Setup menu system for tray apps
+static bool setup_menu_if_needed(void) {
+    if (app_is_console()) {
+        return true; // No menu needed for console apps
     }
 
-    // Hide loading overlay for success case
-    overlay_hide();
+    if (menu_init() != 0) {
+        log_error("Failed to create menu");
+        app_quit();
+        return false;
+    }
 
-    // Continue with rest of initialization
-    continue_app_initialization();
+    if (menu_show() != 0) {
+        log_error("Failed to show menu");
+        menu_cleanup();
+        app_quit();
+        return false;
+    }
+
+    log_info("Menu created successfully");
+    return true;
+}
+
+// Handle keylogger permission issues on macOS
+static bool handle_keylogger_permissions(void) {
+    #ifdef __APPLE__
+    if (!app_is_console()) {
+        // Need accessibility permission on macOS tray apps
+        int response = dialog_accessibility_permission();
+        if (response == 0) {
+            // User says they granted permission - retry
+            app_sleep_responsive(PERMISSION_RETRY_DELAY_MS);
+            return true; // Should retry
+        } else if (response == 1) {
+            // Open System Preferences and wait
+            utils_open_accessibility_settings();
+            if (dialog_wait_for_permission()) {
+                app_sleep_responsive(PERMISSION_RETRY_DELAY_MS);
+                return true; // Should retry
+            } else {
+                // User chose to quit
+                app_quit();
+                return false;
+            }
+        } else {
+            // User chose to quit
+            app_quit();
+            return false;
+        }
+    } else {
+        // CLI app - just log and exit
+        log_error("Failed to initialize keyboard monitoring");
+        log_error("Please grant accessibility permission in System Preferences → Security & Privacy → Privacy → Accessibility");
+        app_quit();
+        return false;
+    }
+    #else
+    // Non-macOS platforms
+    log_error("Failed to initialize keyboard monitoring");
+    app_quit();
+    return false;
+    #endif
+}
+
+// Setup keylogger with permission handling
+static bool setup_keylogger(void) {
+    while (true) {
+        if (keylogger_init(on_key_press, on_key_release, g_state) == 0) {
+            log_info("✅ Keylogger started successfully");
+
+            // Load saved hotkey from preferences
+            KeyCombination combo;
+            if (preferences_load_key_combination(&combo)) {
+                keylogger_set_combination(&combo);
+            } else {
+                // Use default
+                KeyCombination default_combo = keylogger_get_fn_combination();
+                keylogger_set_combination(&default_combo);
+                #ifdef _WIN32
+                log_info("Using default Right Ctrl hotkey");
+                #else
+                log_info("Using default FN key hotkey");
+                #endif
+            }
+            return true;
+        } else {
+            // Keylogger init failed - handle permissions
+            if (!handle_keylogger_permissions()) {
+                return false; // User quit or error
+            }
+            // Continue loop to retry
+        }
+    }
+}
+
+// Handle first run dialog for tray apps
+static void handle_first_run(void) {
+    if (app_is_console()) {
+        return; // No first run dialog for console apps
+    }
+
+    if (preferences_get_bool("first_run", true)) {
+        preferences_set_bool("first_run", false);
+        preferences_save();
+
+        if (dialog_confirm("Welcome to Yakety",
+                          "Would you like Yakety to start automatically when you log in?")) {
+            if (utils_set_launch_at_login(true)) {
+                dialog_info("Launch Settings", "Yakety will now start automatically when you log in.");
+            }
+        }
+    }
+}
+
+// Process recorded audio - extract from on_key_release
+static void process_recorded_audio(double duration) {
+    log_info("🔴 Recorded for %.2f seconds", duration);
+    double stop_start = utils_now();
+    audio_recorder_stop();
+    double stop_duration = utils_now() - stop_start;
+    log_info("⏱️  Audio stop took: %.0f ms", stop_duration * 1000.0);
+
+    // Get recorded audio
+    double get_samples_start = utils_now();
+    int sample_count = 0;
+    float* samples = audio_recorder_get_samples(&sample_count);
+    double get_samples_duration = utils_now() - get_samples_start;
+    log_info("⏱️  Getting audio samples took: %.0f ms (%d samples)", get_samples_duration * 1000.0, sample_count);
+
+    if (samples && sample_count > 0) {
+        log_info("🧠 Starting transcription of %.2f seconds of audio...", (float)sample_count / 16000.0f);
+        overlay_show("Transcribing");
+
+        double transcribe_start = utils_now();
+        char* text = transcription_process(samples, sample_count, 16000);
+        double transcribe_duration = utils_now() - transcribe_start;
+        overlay_hide();
+        log_info("⏱️  Full transcription pipeline took: %.0f ms", transcribe_duration * 1000.0);
+
+        if (text && strlen(text) > 0) {
+            // Text is already cleaned and has trailing space from transcription_process
+            double clipboard_start = utils_now();
+            clipboard_copy(text);
+            clipboard_paste();
+            double clipboard_duration = utils_now() - clipboard_start;
+
+            log_info("📝 \"%s\"", text);
+            log_info("✅ Text pasted! (clipboard operations took %.0f ms)", clipboard_duration * 1000.0);
+
+            double total_time = utils_now() - stop_start;
+            log_info("⏱️  Total time from stop to paste: %.0f ms", total_time * 1000.0);
+
+            free(text);
+        } else {
+            log_info("⚠️  No speech detected");
+            if (text) free(text);
+        }
+
+        free(samples);
+    }
 }
 
 static void on_key_press(void* userdata) {
@@ -171,57 +327,15 @@ static void on_key_release(void* userdata) {
         double duration = utils_get_time() - state->recording_start_time;
 
         // Minimum recording duration check
-        if (duration < 0.1) {
+        if (duration < MIN_RECORDING_DURATION) {
             log_info("⚠️  Recording too brief (%.2f seconds), ignoring", duration);
             audio_recorder_stop();
             overlay_hide();
             return;
         }
 
-        log_info("🔴 Recorded for %.2f seconds", duration);
-        double stop_start = utils_now();
-        audio_recorder_stop();
-        double stop_duration = utils_now() - stop_start;
-        log_info("⏱️  Audio stop took: %.0f ms", stop_duration * 1000.0);
-
-        // Get recorded audio
-        double get_samples_start = utils_now();
-        int sample_count = 0;
-        float* samples = audio_recorder_get_samples(&sample_count);
-        double get_samples_duration = utils_now() - get_samples_start;
-        log_info("⏱️  Getting audio samples took: %.0f ms (%d samples)", get_samples_duration * 1000.0, sample_count);
-
-        if (samples && sample_count > 0) {
-            log_info("🧠 Starting transcription of %.2f seconds of audio...", (float)sample_count / 16000.0f);
-            overlay_show("Transcribing");
-
-            double transcribe_start = utils_now();
-            char* text = transcription_process(samples, sample_count, 16000);
-            double transcribe_duration = utils_now() - transcribe_start;
-            overlay_hide();
-            log_info("⏱️  Full transcription pipeline took: %.0f ms", transcribe_duration * 1000.0);
-
-            if (text && strlen(text) > 0) {
-                // Text is already cleaned and has trailing space from transcription_process
-                double clipboard_start = utils_now();
-                clipboard_copy(text);
-                clipboard_paste();
-                double clipboard_duration = utils_now() - clipboard_start;
-
-                log_info("📝 \"%s\"", text);
-                log_info("✅ Text pasted! (clipboard operations took %.0f ms)", clipboard_duration * 1000.0);
-
-                double total_time = utils_now() - stop_start;
-                log_info("⏱️  Total time from stop to paste: %.0f ms", total_time * 1000.0);
-
-                free(text);
-            } else {
-                log_info("⚠️  No speech detected");
-                if (text) free(text);
-            }
-
-            free(samples);
-        }
+        // Process the recorded audio
+        process_recorded_audio(duration);
     }
 }
 
@@ -230,121 +344,36 @@ static void on_key_release(void* userdata) {
 
 // Called when app is ready - for both CLI and tray apps
 static void on_app_ready(void) {
-    log_info("on_app_ready called - starting model loading (%.0f ms since app start)", utils_now() * 1000.0);
+    log_info("on_app_ready called - starting initialization (%.0f ms since app start)", utils_now() * 1000.0);
 
-    // Show loading overlay
-    overlay_show("Loading model");
-
-    // Start loading model asynchronously
-    utils_execute_async(load_model_async, NULL, on_model_loaded);
-}
-
-// Continue with app initialization after model loads
-static void continue_app_initialization(void) {
-
-    // Initialize menu system for tray apps
-    if (!app_is_console()) {
-        if (menu_init() != 0) {
-            log_error("Failed to create menu");
-            app_quit();
-            return;
-        }
-
-        if (menu_show() != 0) {
-            log_error("Failed to show menu");
-            menu_cleanup();
-            app_quit();
-            return;
-        }
-
-        log_info("Menu created successfully");
+    // Step 1: Load model with fallback
+    if (!load_model_with_fallback()) {
+        return; // Model loading failed and quit was called
     }
 
-    // Initialize keylogger for all apps (after run loop is active)
-    bool keylogger_started = false;
-    while (!keylogger_started) {
-        if (keylogger_init(on_key_press, on_key_release, g_state) == 0) {
-            keylogger_started = true;
-            log_info("✅ Keylogger started successfully");
-
-            // Load saved hotkey from preferences
-            {
-                KeyCombination combo;
-                if (preferences_load_key_combination(&combo)) {
-                    keylogger_set_combination(&combo);
-                } else {
-                    // Use default
-                    KeyCombination default_combo = keylogger_get_fn_combination();
-                    keylogger_set_combination(&default_combo);
-                    #ifdef _WIN32
-                    log_info("Using default Right Ctrl hotkey");
-                    #else
-                    log_info("Using default FN key hotkey");
-                    #endif
-                }
-            }
-        } else {
-            #ifdef __APPLE__
-            #ifdef YAKETY_TRAY_APP
-            // Need accessibility permission on macOS
-            int response = dialog_accessibility_permission();
-            if (response == 0) {
-                // User says they granted permission - retry
-                utils_sleep_ms(500);
-                continue;
-            } else if (response == 1) {
-                // Open System Preferences and wait
-                utils_open_accessibility_settings();
-                if (dialog_wait_for_permission()) {
-                    utils_sleep_ms(500);
-                    continue;
-                } else {
-                    // User chose to quit
-                    app_quit();
-                    return;
-                }
-            } else {
-                // User chose to quit
-                app_quit();
-                return;
-            }
-            #else
-            // CLI app - just log and exit
-            log_error("Failed to initialize keyboard monitoring");
-            log_error("Please grant accessibility permission in System Preferences → Security & Privacy → Privacy → Accessibility");
-            app_quit();
-            return;
-            #endif
-            #else
-            // Non-macOS platforms
-            log_error("Failed to initialize keyboard monitoring");
-            app_quit();
-            return;
-            #endif
-        }
+    // Step 2: Setup menu system
+    if (!setup_menu_if_needed()) {
+        return; // Menu setup failed and quit was called
     }
 
+    // Step 3: Setup keylogger with permission handling
+    if (!setup_keylogger()) {
+        return; // Keylogger setup failed and quit was called
+    }
+
+    // Step 4: Log startup completion
     #ifdef _WIN32
     log_info("Yakety is running. Press and hold Right Ctrl to record.");
     #else
     log_info("Yakety is running. Press and hold FN to record.");
     #endif
 
-    #ifdef YAKETY_TRAY_APP
-    // Check for first run and offer auto-launch
-    if (preferences_get_bool("first_run", true)) {
-        preferences_set_bool("first_run", false);
-        preferences_save();
+    // Step 5: Handle first run dialog
+    handle_first_run();
 
-        if (dialog_confirm("Welcome to Yakety",
-                          "Would you like Yakety to start automatically when you log in?")) {
-            if (utils_set_launch_at_login(true)) {
-                dialog_info("Launch Settings", "Yakety will now start automatically when you log in.");
-            }
-        }
-    }
-    #endif
+    log_info("App initialization completed successfully");
 }
+
 
 static const char* parse_cli_args(int argc, char** argv) {
     if (argc <= 1) {
@@ -374,6 +403,20 @@ static const char* parse_cli_args(int argc, char** argv) {
     }
 
     return NULL;
+}
+
+// Cleanup all modules in proper order
+static void cleanup_all(void) {
+    keylogger_cleanup();
+    if (!app_is_console()) {
+        menu_cleanup();
+    }
+    audio_recorder_cleanup();
+    transcription_cleanup();
+    overlay_cleanup();
+    app_cleanup();
+    preferences_cleanup();
+    log_cleanup();
 }
 
 int app_main(int argc, char** argv, bool is_console) {
@@ -414,15 +457,13 @@ int app_main(int argc, char** argv, bool is_console) {
     }
 
     // Initialize overlay
+    log_info("Initializing overlay");
     overlay_init();
 
     // Initialize audio recorder
     if (!audio_recorder_init()) {
         log_error("Failed to initialize audio recorder");
-        overlay_cleanup();
-        app_cleanup();
-        preferences_cleanup();
-        log_cleanup();
+        cleanup_all();
         return 1;
     }
 
@@ -435,17 +476,7 @@ int app_main(int argc, char** argv, bool is_console) {
     app_run();
 
     // Cleanup
-    keylogger_cleanup();
-    if (!app_is_console()) {
-        menu_cleanup();
-    }
-    audio_recorder_cleanup();
-    transcription_cleanup();
-    overlay_cleanup();
-    app_cleanup();
-    preferences_cleanup();
-    log_cleanup();
-
+    cleanup_all();
     return 0;
 }
 

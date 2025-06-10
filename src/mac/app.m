@@ -118,3 +118,77 @@ bool app_is_console(void) {
 bool app_is_running(void) {
     return utils_atomic_read_bool(&g_config.running);
 }
+
+// Blocking async execution with event pumping
+typedef struct {
+    volatile bool completed;
+    void* result;
+} BlockingAsyncContext;
+
+// Completion callback for blocking async
+static BlockingAsyncContext* g_blocking_ctx = NULL;
+
+static void blocking_completion_callback(void* result) {
+    if (g_blocking_ctx) {
+        g_blocking_ctx->result = result;
+        g_blocking_ctx->completed = true;
+    }
+}
+
+void* app_execute_async_blocking(async_work_fn work, void* arg) {
+
+    // For GUI apps, use the async approach with event pumping
+    BlockingAsyncContext ctx = {false, NULL};
+    g_blocking_ctx = &ctx; // Set global context
+
+    // Start the async work with a completion callback
+    utils_execute_async(work, arg, blocking_completion_callback);
+
+    // Pump events until completion
+    @autoreleasepool {
+        while (!ctx.completed && app_is_running()) {
+            if (!g_config.is_console) {
+                // For GUI apps, process NSApp events
+                NSEvent* event = [NSApp nextEventMatchingMask:NSEventMaskAny
+                                               untilDate:[NSDate dateWithTimeIntervalSinceNow:0.001]
+                                              inMode:NSDefaultRunLoopMode
+                                             dequeue:YES];
+                if (event) {
+                    [NSApp sendEvent:event];
+                }
+            } else {
+                CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.001, true);
+            }
+            usleep(1000); // 1ms
+        }
+    }
+
+    g_blocking_ctx = NULL; // Clear global context
+    return ctx.result;
+}
+
+void app_sleep_responsive(int milliseconds) {
+    // For GUI apps, sleep while keeping UI responsive
+    double start_time = utils_now();
+    double target_duration = milliseconds / 1000.0; // Convert to seconds
+
+    @autoreleasepool {
+        while ((utils_now() - start_time) < target_duration && app_is_running()) {
+            if (!g_config.is_console) {
+                // For GUI apps, process NSApp events
+                NSEvent* event = [NSApp nextEventMatchingMask:NSEventMaskAny
+                                            untilDate:[NSDate dateWithTimeIntervalSinceNow:0.001]
+                                                inMode:NSDefaultRunLoopMode
+                                                dequeue:YES];
+                if (event) {
+                    [NSApp sendEvent:event];
+                }
+            } else {
+                CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.001, true);
+            }
+
+            // Small yield
+            usleep(1000); // 1ms
+        }
+    }
+}

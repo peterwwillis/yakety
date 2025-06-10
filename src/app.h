@@ -61,4 +61,15 @@ bool app_is_console(void);
 // Check if the app is running
 bool app_is_running(void);
 
+// Forward declare from utils.h to avoid duplicate typedef
+#ifndef ASYNC_WORK_FN_DEFINED
+#include "utils.h"
+#endif
+
+// Blocking async execution - pumps events to keep UI responsive while waiting
+void* app_execute_async_blocking(async_work_fn work, void* arg);
+
+// Responsive sleep that pumps events to keep UI responsive
+void app_sleep_responsive(int milliseconds);
+
 #endif // APP_H

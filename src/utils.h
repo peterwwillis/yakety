@@ -15,6 +15,7 @@ bool utils_is_launch_at_login_enabled(void);
 bool utils_set_launch_at_login(bool enabled);
 
 // Async work execution
+#define ASYNC_WORK_FN_DEFINED
 typedef void* (*async_work_fn)(void* arg);
 typedef void (*async_callback_fn)(void* result);
 

@@ -1,6 +1,7 @@
 #import <Cocoa/Cocoa.h>
 #include "../overlay.h"
 #include "../logging.h"
+#include "dispatch.h"
 
 static NSWindow* overlayWindow = nil;
 static NSTextField* messageLabel = nil;
@@ -8,9 +9,11 @@ static NSImageView* iconView = nil;
 static CALayer* borderLayer = nil;
 static NSColor* g_currentTintColor = nil;
 
+
 void overlay_init(void) {
-    dispatch_async(dispatch_get_main_queue(), ^{
+    app_dispatch_main(^{
         @autoreleasepool {
+            log_info("Overlay window creation starting");
             // Create a more compact window with icon + text
             NSRect frame = NSMakeRect(0, 0, 140, 36);
             overlayWindow = [[NSWindow alloc] initWithContentRect:frame
@@ -136,6 +139,7 @@ void overlay_init(void) {
                 30  // 30 pixels from bottom
             );
             [overlayWindow setFrameOrigin:position];
+            log_info("Overlay window creation completed");
         }
     });
 }
@@ -153,9 +157,11 @@ static void overlay_show_with_color(const char* message, NSColor* tintColor) {
         return;
     }
     
-    dispatch_async(dispatch_get_main_queue(), ^{
+    app_dispatch_main(^{
         @autoreleasepool {
+            log_info("Overlay show requested for: %s", message);
             if (overlayWindow && messageLabel) {
+                log_info("Overlay window exists, showing");
                 
                 // Update colors if different
                 if (![tintColor isEqual:g_currentTintColor]) {
@@ -227,6 +233,8 @@ static void overlay_show_with_color(const char* message, NSColor* tintColor) {
                     [context setDuration:0.15]; // Quick fade in
                     [[overlayWindow animator] setAlphaValue:1.0];
                 } completionHandler:nil];
+            } else {
+                log_info("Overlay window not ready yet (overlayWindow=%p, messageLabel=%p)", overlayWindow, messageLabel);
             }
         }
     });
@@ -243,7 +251,7 @@ void overlay_show_error(const char* message) {
 }
 
 void overlay_hide(void) {
-    dispatch_async(dispatch_get_main_queue(), ^{
+    app_dispatch_main(^{
         @autoreleasepool {
             if (overlayWindow) {
                 // Fade out animation

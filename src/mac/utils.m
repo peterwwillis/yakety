@@ -4,6 +4,7 @@
 #include "../utils.h"
 #include "../logging.h"
 #include "../preferences.h"
+#include "dispatch.h"
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -18,11 +19,11 @@ double utils_get_time(void) {
 
 double utils_now(void) {
     static double start_time = -1.0;
-    
+
     if (start_time < 0) {
         start_time = utils_get_time();
     }
-    
+
     return utils_get_time() - start_time;
 }
 
@@ -32,9 +33,9 @@ void utils_sleep_ms(int milliseconds) {
 
 const char* utils_get_model_path(void) {
     static char model_path[PATH_MAX] = {0};
-    
+
     log_info("🔍 Searching for Whisper model...\n");
-    
+
     // Check if we have a model path from preferences
     const char* config_model = preferences_get_string("model");
     if (config_model && strlen(config_model) > 0) {
@@ -47,7 +48,7 @@ const char* utils_get_model_path(void) {
             log_info("  ❌ Preferences model not found or not accessible\n");
         }
     }
-    
+
     @autoreleasepool {
         // First check current directory
         log_info("  Checking current directory: ggml-base.en.bin\n");
@@ -55,12 +56,12 @@ const char* utils_get_model_path(void) {
             log_info("  ✅ Found in current directory\n");
             return "ggml-base.en.bin";
         }
-        
+
         // Check in app bundle Resources
         NSBundle* bundle = [NSBundle mainBundle];
         NSString* bundlePath = [bundle bundlePath];
         log_info("  Bundle path: %s\n", [bundlePath UTF8String]);
-        
+
         // Check Resources/models/ggml-base.en.bin (where CMake puts it)
         NSString* resourceModelPath = [bundle pathForResource:@"models/ggml-base.en" ofType:@"bin"];
         if (resourceModelPath) {
@@ -68,7 +69,7 @@ const char* utils_get_model_path(void) {
             strncpy(model_path, [resourceModelPath UTF8String], PATH_MAX - 1);
             return model_path;
         }
-        
+
         // Check Resources/ggml-base.en.bin
         NSString* resourcePath = [bundle pathForResource:@"ggml-base.en" ofType:@"bin"];
         if (resourcePath) {
@@ -76,12 +77,12 @@ const char* utils_get_model_path(void) {
             strncpy(model_path, [resourcePath UTF8String], PATH_MAX - 1);
             return model_path;
         }
-        
+
         // Check in executable directory
         NSString* execPath = [bundle executablePath];
         NSString* execDir = [execPath stringByDeletingLastPathComponent];
         log_info("  Executable directory: %s\n", [execDir UTF8String]);
-        
+
         // Check models subdirectory in executable directory
         NSString* modelsDir = [execDir stringByAppendingPathComponent:@"models"];
         NSString* modelInModelsDir = [modelsDir stringByAppendingPathComponent:@"ggml-base.en.bin"];
@@ -91,7 +92,7 @@ const char* utils_get_model_path(void) {
             strncpy(model_path, [modelInModelsDir UTF8String], PATH_MAX - 1);
             return model_path;
         }
-        
+
         // Check directly in executable directory
         NSString* modelInExecDir = [execDir stringByAppendingPathComponent:@"ggml-base.en.bin"];
         log_info("  Checking: %s\n", [modelInExecDir UTF8String]);
@@ -100,9 +101,9 @@ const char* utils_get_model_path(void) {
             strncpy(model_path, [modelInExecDir UTF8String], PATH_MAX - 1);
             return model_path;
         }
-        
+
         // Check in build directory (parent of executable directory)
-        NSString* buildPath = [[execDir stringByDeletingLastPathComponent] 
+        NSString* buildPath = [[execDir stringByDeletingLastPathComponent]
                                stringByAppendingPathComponent:@"ggml-base.en.bin"];
         log_info("  Checking: %s\n", [buildPath UTF8String]);
         if ([[NSFileManager defaultManager] fileExistsAtPath:buildPath]) {
@@ -110,7 +111,7 @@ const char* utils_get_model_path(void) {
             strncpy(model_path, [buildPath UTF8String], PATH_MAX - 1);
             return model_path;
         }
-        
+
         // Check whisper.cpp/models directory relative to current directory
         NSString* whisperModelsPath = @"whisper.cpp/models/ggml-base.en.bin";
         log_info("  Checking: %s\n", [whisperModelsPath UTF8String]);
@@ -119,7 +120,7 @@ const char* utils_get_model_path(void) {
             strncpy(model_path, [whisperModelsPath UTF8String], PATH_MAX - 1);
             return model_path;
         }
-        
+
         // Check relative to executable's parent parent (for build/bin structure)
         NSString* projectRoot = [[execDir stringByDeletingLastPathComponent] stringByDeletingLastPathComponent];
         NSString* whisperModelsFromRoot = [projectRoot stringByAppendingPathComponent:@"whisper.cpp/models/ggml-base.en.bin"];
@@ -130,7 +131,7 @@ const char* utils_get_model_path(void) {
             return model_path;
         }
     }
-    
+
     log_error("  ❌ Model not found in any location!\n");
     return NULL;
 }
@@ -155,7 +156,7 @@ bool utils_is_launch_at_login_enabled(void) {
         } else {
             // For older macOS versions, check LaunchAgents
             NSString* bundleID = [[NSBundle mainBundle] bundleIdentifier];
-            NSString* launchAgentPath = [NSString stringWithFormat:@"%@/Library/LaunchAgents/%@.plist", 
+            NSString* launchAgentPath = [NSString stringWithFormat:@"%@/Library/LaunchAgents/%@.plist",
                                        NSHomeDirectory(), bundleID];
             return [[NSFileManager defaultManager] fileExistsAtPath:launchAgentPath];
         }
@@ -170,13 +171,13 @@ bool utils_set_launch_at_login(bool enabled) {
             #pragma clang diagnostic ignored "-Wunguarded-availability-new"
             NSError *error = nil;
             SMAppService *service = [SMAppService mainAppService];
-            
+
             if (enabled) {
                 if ([service registerAndReturnError:&error]) {
                     log_info("Successfully enabled launch at login\n");
                     return true;
                 } else {
-                    log_error("Failed to enable launch at login: %s\n", 
+                    log_error("Failed to enable launch at login: %s\n",
                             [[error localizedDescription] UTF8String]);
                     return false;
                 }
@@ -185,7 +186,7 @@ bool utils_set_launch_at_login(bool enabled) {
                     log_info("Successfully disabled launch at login\n");
                     return true;
                 } else {
-                    log_error("Failed to disable launch at login: %s\n", 
+                    log_error("Failed to disable launch at login: %s\n",
                             [[error localizedDescription] UTF8String]);
                     return false;
                 }
@@ -195,9 +196,9 @@ bool utils_set_launch_at_login(bool enabled) {
             // For older macOS versions, use LaunchAgents
             NSString* bundleID = [[NSBundle mainBundle] bundleIdentifier];
             NSString* appPath = [[NSBundle mainBundle] bundlePath];
-            NSString* launchAgentPath = [NSString stringWithFormat:@"%@/Library/LaunchAgents/%@.plist", 
+            NSString* launchAgentPath = [NSString stringWithFormat:@"%@/Library/LaunchAgents/%@.plist",
                                        NSHomeDirectory(), bundleID];
-            
+
             if (enabled) {
                 // Create LaunchAgent plist
                 NSDictionary* plist = @{
@@ -206,14 +207,14 @@ bool utils_set_launch_at_login(bool enabled) {
                     @"RunAtLoad": @YES,
                     @"LSUIElement": @YES
                 };
-                
+
                 // Create LaunchAgents directory if needed
                 NSString* launchAgentsDir = [launchAgentPath stringByDeletingLastPathComponent];
-                [[NSFileManager defaultManager] createDirectoryAtPath:launchAgentsDir 
-                                          withIntermediateDirectories:YES 
-                                                           attributes:nil 
+                [[NSFileManager defaultManager] createDirectoryAtPath:launchAgentsDir
+                                          withIntermediateDirectories:YES
+                                                           attributes:nil
                                                                 error:nil];
-                
+
                 // Write plist
                 return [plist writeToFile:launchAgentPath atomically:YES];
             } else {
@@ -237,13 +238,13 @@ typedef struct {
 static void* async_work_thread(void* data) {
     AsyncWorkData* work_data = (AsyncWorkData*)data;
     void* result = work_data->work(work_data->arg);
-    
+
     // Schedule callback on main thread
-    dispatch_async(dispatch_get_main_queue(), ^{
+    app_dispatch_main(^{
         work_data->callback(result);
         free(work_data);
     });
-    
+
     return NULL;
 }
 
@@ -252,7 +253,7 @@ void utils_execute_async(async_work_fn work, void* arg, async_callback_fn callba
     work_data->work = work;
     work_data->arg = arg;
     work_data->callback = callback;
-    
+
     pthread_t thread;
     pthread_create(&thread, NULL, async_work_thread, work_data);
     pthread_detach(thread);
@@ -268,7 +269,7 @@ void utils_execute_main_thread(int delay_ms, delay_callback_fn callback, void* a
     DelayCallbackData* data = malloc(sizeof(DelayCallbackData));
     data->callback = callback;
     data->arg = arg;
-    
+
     dispatch_time_t delay = dispatch_time(DISPATCH_TIME_NOW, delay_ms * NSEC_PER_MSEC);
     dispatch_after(delay, dispatch_get_main_queue(), ^{
         data->callback(data->arg);
@@ -294,7 +295,7 @@ bool utils_ensure_dir_exists(const char* path) {
     if (stat(path, &st) == 0) {
         return S_ISDIR(st.st_mode);
     }
-    
+
     // Create directory with 0755 permissions
     return mkdir(path, 0755) == 0;
 }
@@ -347,3 +348,4 @@ void utils_atomic_write_int(int* ptr, int value) {
     // Use GCC builtin atomic store
     __atomic_store_n(ptr, value, __ATOMIC_SEQ_CST);
 }
+
