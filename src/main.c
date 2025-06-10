@@ -107,7 +107,6 @@ static bool load_model_with_fallback(void) {
 
     // Model loaded successfully
     log_info("Model loaded successfully at %.3f seconds", utils_now());
-    app_sleep_responsive(4000);
     overlay_hide();
     return true;
 }
