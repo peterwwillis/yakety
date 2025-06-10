@@ -53,7 +53,7 @@ if(APPLE)
         src/mac/keylogger.c
         src/mac/app.m
         src/mac/utils.m
-        src/config.c
+        src/preferences.c
     )
     target_link_libraries(platform PUBLIC ${PLATFORM_FRAMEWORKS})
 elseif(WIN32)
@@ -67,7 +67,7 @@ elseif(WIN32)
         src/windows/keylogger.c
         src/windows/app.c
         src/windows/utils.c
-        src/config.c
+        src/preferences.c
     )
     target_link_libraries(platform PUBLIC ${PLATFORM_LIBS})
     if(HAS_VULKAN)

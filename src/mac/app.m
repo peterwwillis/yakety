@@ -4,9 +4,16 @@
 #include "../overlay.h"
 #include "../utils.h"
 
+// Internal AppConfig struct for macOS
+typedef struct {
+    const char* name;
+    const char* version;
+    bool is_console;
+    AppReadyCallback on_ready;
+    bool running;
+} AppConfig;
+
 static AppConfig g_config = {0};
-static volatile bool g_running = true;
-bool g_is_console = false;  // Global for logging module
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 @end
@@ -15,12 +22,12 @@ bool g_is_console = false;  // Global for logging module
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     (void)notification;
-    
+
     // Switch to accessory mode after launch for tray apps
     if (!g_config.is_console) {
         [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
     }
-    
+
     // The app is now ready - call the callback if provided
     if (g_config.on_ready) {
         g_config.on_ready();
@@ -34,7 +41,7 @@ bool g_is_console = false;  // Global for logging module
 
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
     (void)sender;
-    g_running = false;
+    utils_atomic_write_bool(&g_config.running, false);
     return NSTerminateNow;
 }
 
@@ -42,19 +49,22 @@ bool g_is_console = false;  // Global for logging module
 
 static AppDelegate* g_app_delegate = nil;
 
-int app_init(const AppConfig* config) {
-    g_config = *config;
-    g_is_console = config->is_console;
+int app_init(const char* name, const char* version, bool is_console, AppReadyCallback on_ready) {
+    g_config.name = name;
+    g_config.version = version;
+    g_config.is_console = is_console;
+    g_config.on_ready = on_ready;
+    g_config.running = true;
 
     // Initialize NSApplication
     [NSApplication sharedApplication];
 
-    if (config->is_console) {
+    if (is_console) {
         [NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited];
-        
+
         // For console apps, finish launching to ensure proper initialization
         [NSApp finishLaunching];
-        
+
         // For console apps, call on_ready immediately after init
         if (g_config.on_ready) {
             // Schedule on_ready to run on the next iteration of the run loop
@@ -65,7 +75,7 @@ int app_init(const AppConfig* config) {
     } else {
         // For tray apps, start as regular to ensure UI works properly
         [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-        
+
         g_app_delegate = [[AppDelegate alloc] init];
         [NSApp setDelegate:g_app_delegate];
     }
@@ -89,7 +99,7 @@ void app_run(void) {
 }
 
 void app_quit(void) {
-    g_running = false;
+    utils_atomic_write_bool(&g_config.running, false);
 
     if (g_config.is_console) {
         // Stop the run loop for console apps
@@ -99,4 +109,8 @@ void app_quit(void) {
             [NSApp terminate:nil];
         });
     }
+}
+
+bool app_is_console(void) {
+    return g_config.is_console;
 }

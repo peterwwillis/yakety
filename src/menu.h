@@ -3,8 +3,7 @@
 
 #include <stdbool.h>
 
-// Forward declarations
-struct Config;
+// Forward declarations - none needed now
 
 #define MAX_MENU_ITEMS 20
 
@@ -44,7 +43,7 @@ void menu_update_item(MenuSystem* menu, int index, const char* new_title);
 void menu_destroy(MenuSystem* menu);
 
 // Initialize menu system with external state (call before menu_setup)
-void menu_init(struct Config* config, volatile bool* running);
+void menu_init(bool* running);
 
 // Create and configure the application menu with all standard items
 MenuSystem* menu_setup(void);

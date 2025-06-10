@@ -22,16 +22,19 @@
 
 typedef void (*AppReadyCallback)(void);
 
-typedef struct {
-    const char* name;
-    const char* version;
-    bool is_console;
-    AppReadyCallback on_ready;
-} AppConfig;
+// Initialize the application
+int app_init(const char* name, const char* version, bool is_console, AppReadyCallback on_ready);
 
-int app_init(const AppConfig* config);
+// Cleanup the application
 void app_cleanup(void);
+
+// Run the application main loop
 void app_run(void);
+
+// Quit the application
 void app_quit(void);
+
+// Check if the app is running in console mode
+bool app_is_console(void);
 
 #endif // APP_H

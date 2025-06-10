@@ -3,7 +3,7 @@
 #import <ServiceManagement/ServiceManagement.h>
 #include "../utils.h"
 #include "../logging.h"
-#include "../config.h"
+#include "../preferences.h"
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -30,24 +30,21 @@ void utils_sleep_ms(int milliseconds) {
     usleep(milliseconds * 1000);
 }
 
-const char* utils_get_model_path_with_config(void* config) {
+const char* utils_get_model_path(void) {
     static char model_path[PATH_MAX] = {0};
     
     log_info("🔍 Searching for Whisper model...\n");
     
-    // Check if we have a config to get model path from
-    if (config) {
-        Config* cfg = (Config*)config;
-        const char* config_model = config_get_string(cfg, "model");
-        if (config_model && strlen(config_model) > 0) {
-            log_info("  Checking config model: %s\n", config_model);
-            if (access(config_model, F_OK) == 0) {
-                log_info("  ✅ Found model from config\n");
-                strncpy(model_path, config_model, PATH_MAX - 1);
-                return model_path;
-            } else {
-                log_info("  ❌ Config model not found or not accessible\n");
-            }
+    // Check if we have a model path from preferences
+    const char* config_model = preferences_get_string("model");
+    if (config_model && strlen(config_model) > 0) {
+        log_info("  Checking preferences model: %s\n", config_model);
+        if (access(config_model, F_OK) == 0) {
+            log_info("  ✅ Found model from preferences\n");
+            strncpy(model_path, config_model, PATH_MAX - 1);
+            return model_path;
+        } else {
+            log_info("  ❌ Preferences model not found or not accessible\n");
         }
     }
     
@@ -136,10 +133,6 @@ const char* utils_get_model_path_with_config(void* config) {
     
     log_error("  ❌ Model not found in any location!\n");
     return NULL;
-}
-
-const char* utils_get_model_path(void) {
-    return utils_get_model_path_with_config(NULL);
 }
 
 void utils_open_accessibility_settings(void) {
@@ -254,7 +247,7 @@ static void* async_work_thread(void* data) {
     return NULL;
 }
 
-void utils_async_execute(async_work_fn work, void* arg, async_callback_fn callback) {
+void utils_execute_async(async_work_fn work, void* arg, async_callback_fn callback) {
     AsyncWorkData* work_data = malloc(sizeof(AsyncWorkData));
     work_data->work = work;
     work_data->arg = arg;
@@ -271,7 +264,7 @@ typedef struct {
     void* arg;
 } DelayCallbackData;
 
-void utils_delay_on_main_thread(int delay_ms, delay_callback_fn callback, void* arg) {
+void utils_execute_main_thread(int delay_ms, delay_callback_fn callback, void* arg) {
     DelayCallbackData* data = malloc(sizeof(DelayCallbackData));
     data->callback = callback;
     data->arg = arg;
@@ -332,4 +325,25 @@ char* utils_strdup(const char* str) {
 
 int utils_stricmp(const char* s1, const char* s2) {
     return strcasecmp(s1, s2);
+}
+
+// Atomic operations for thread-safe access
+bool utils_atomic_read_bool(bool* ptr) {
+    // Use GCC builtin atomic load
+    return __atomic_load_n(ptr, __ATOMIC_SEQ_CST);
+}
+
+void utils_atomic_write_bool(bool* ptr, bool value) {
+    // Use GCC builtin atomic store
+    __atomic_store_n(ptr, value, __ATOMIC_SEQ_CST);
+}
+
+int utils_atomic_read_int(int* ptr) {
+    // Use GCC builtin atomic load
+    return __atomic_load_n(ptr, __ATOMIC_SEQ_CST);
+}
+
+void utils_atomic_write_int(int* ptr, int value) {
+    // Use GCC builtin atomic store
+    __atomic_store_n(ptr, value, __ATOMIC_SEQ_CST);
 }

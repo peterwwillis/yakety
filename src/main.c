@@ -13,7 +13,7 @@
 #include "clipboard.h"
 #include "overlay.h"
 #include "utils.h"
-#include "config.h"
+#include "preferences.h"
 
 #ifdef YAKETY_TRAY_APP
 #include "menu.h"
@@ -22,15 +22,12 @@
 
 
 typedef struct {
-    AudioRecorder* recorder;
     bool recording;
     double recording_start_time;
 } AppState;
 
 static AppState* g_state = NULL;
-static volatile bool g_running = true;
-static Config* g_config = NULL;
-static AudioRecorder* g_recorder = NULL;
+static bool g_running = true;
 
 // Forward declarations
 static void continue_app_initialization(void);
@@ -44,17 +41,17 @@ typedef struct {
 
 static void signal_handler(int sig) {
     (void)sig;
-    g_running = false;
+    utils_atomic_write_bool(&g_running, false);
     app_quit();
 }
 
 // Async model loading work function
 static void* load_model_async(void* arg) {
-    Config* config = (Config*)arg;
+    (void)arg;  // No longer need config parameter
 
     log_info("Loading Whisper model in background thread...");
 
-    const char* model_path = utils_get_model_path_with_config(config);
+    const char* model_path = utils_get_model_path();
     if (!model_path) {
         log_error("Could not find Whisper model file");
         return (void*)0; // Return 0 for failure
@@ -65,8 +62,8 @@ static void* load_model_async(void* arg) {
         return (void*)0; // Return 0 for failure
     }
 
-    // Set language from config
-    const char* language = config_get_string(config, "language");
+    // Set language from preferences
+    const char* language = preferences_get_string("language");
     if (language) {
         transcription_set_language(language);
     } else {
@@ -81,7 +78,7 @@ static void* load_model_async(void* arg) {
 static void delayed_retry_callback(void* arg) {
     (void)arg;
     overlay_show("Loading base model");
-    utils_async_execute(load_model_async, g_config, on_model_loaded);
+    utils_execute_async(load_model_async, NULL, on_model_loaded);
 }
 
 // Callback for delayed quit
@@ -100,7 +97,7 @@ static void on_model_loaded(void* result) {
     if (!success) {
         if (!g_is_fallback_attempt) {
             // First failure - try fallback to base model
-            const char* failed_model = config_get_string(g_config, "model");
+            const char* failed_model = preferences_get_string("model");
             char fallback_msg[256];
 
             if (failed_model && strlen(failed_model) > 0) {
@@ -118,17 +115,17 @@ static void on_model_loaded(void* result) {
             // Show fallback message
             overlay_show_error(fallback_msg);
 
-            // Clear the model from config to use default search
-            config_set_string(g_config, "model", "");
-            config_save(g_config);
+            // Clear the model from preferences to use default search
+            preferences_set_string("model", "");
+            preferences_save();
 
             // Set fallback flag and try again after delay
             g_is_fallback_attempt = true;
-            utils_delay_on_main_thread(3000, delayed_retry_callback, NULL);
+            utils_execute_main_thread(3000, delayed_retry_callback, NULL);
             return;
         } else {
             // Fallback also failed - show error and quit
-            const char* model_path = utils_get_model_path_with_config(g_config);
+            const char* model_path = utils_get_model_path();
             char error_msg[256];
             if (model_path) {
                 const char* filename = strrchr(model_path, '/');
@@ -140,7 +137,7 @@ static void on_model_loaded(void* result) {
             }
 
             overlay_show_error(error_msg);
-            utils_delay_on_main_thread(3000, delayed_quit_callback, NULL);
+            utils_execute_main_thread(3000, delayed_quit_callback, NULL);
             return;
         }
     }
@@ -159,8 +156,7 @@ static void on_key_press(void* userdata) {
         state->recording = true;
         state->recording_start_time = utils_get_time();
 
-        if (audio_recorder_start(state->recorder) == 0) {
-            log_info("🔴 Recording...");
+        if (audio_recorder_start() == 0) {
             overlay_show("Recording");
         } else {
             log_error("Failed to start recording");
@@ -178,21 +174,22 @@ static void on_key_release(void* userdata) {
 
         // Minimum recording duration check
         if (duration < 0.1) {
-            audio_recorder_stop(state->recorder);
+            log_info("⚠️  Recording too brief (%.2f seconds), ignoring", duration);
+            audio_recorder_stop();
             overlay_hide();
             return;
         }
 
-        log_info("⏹️  Stopping recording after %.2f seconds", duration);
+        log_info("🔴 Recorded for %.2f seconds", duration);
         double stop_start = utils_now();
-        audio_recorder_stop(state->recorder);
+        audio_recorder_stop();
         double stop_duration = utils_now() - stop_start;
         log_info("⏱️  Audio stop took: %.0f ms", stop_duration * 1000.0);
 
         // Get recorded audio
         double get_samples_start = utils_now();
         int sample_count = 0;
-        float* samples = audio_recorder_get_samples(state->recorder, &sample_count);
+        float* samples = audio_recorder_get_samples(&sample_count);
         double get_samples_duration = utils_now() - get_samples_start;
         log_info("⏱️  Getting audio samples took: %.0f ms (%d samples)", get_samples_duration * 1000.0, sample_count);
 
@@ -234,29 +231,6 @@ static void on_key_release(void* userdata) {
 static MenuSystem* g_menu = NULL;
 #endif
 
-// Helper to load key combination from config
-static bool load_key_combination(Config* config, KeyCombination* combo) {
-    const char* key_str = config_get_string(config, "KeyCombo");
-    if (key_str) {
-        // Parse new format
-        combo->count = 0;
-        char* copy = strdup(key_str);
-        char* token = strtok(copy, ";");
-
-        while (token && combo->count < 4) {
-            unsigned int code, flags;
-            if (sscanf(token, "%x:%x", &code, &flags) == 2) {
-                combo->keys[combo->count].code = code;
-                combo->keys[combo->count].flags = flags;
-                combo->count++;
-            }
-            token = strtok(NULL, ";");
-        }
-        free(copy);
-        return combo->count > 0;
-    }
-    return false;
-}
 
 
 // Called when app is ready - for both CLI and tray apps
@@ -264,12 +238,12 @@ static void on_app_ready(void) {
     log_info("on_app_ready called - starting model loading (%.0f ms since app start)", utils_now() * 1000.0);
 
     // Show loading overlay
-    if (config_get_bool(g_config, "show_notifications", true)) {
+    if (preferences_get_bool("show_notifications", true)) {
         overlay_show("Loading model");
     }
 
     // Start loading model asynchronously
-    utils_async_execute(load_model_async, g_config, on_model_loaded);
+    utils_execute_async(load_model_async, NULL, on_model_loaded);
 }
 
 // Continue with app initialization after model loads
@@ -277,7 +251,7 @@ static void continue_app_initialization(void) {
 
     #ifdef YAKETY_TRAY_APP
     // Initialize menu system and create menu for tray apps
-    menu_init(g_config, &g_running);
+    menu_init(&g_running);
     g_menu = menu_setup();
     if (!g_menu) {
         log_error("Failed to create menu");
@@ -303,10 +277,10 @@ static void continue_app_initialization(void) {
             keylogger_started = true;
             log_info("✅ Keylogger started successfully");
 
-            // Load saved hotkey from config
-            if (g_config) {
+            // Load saved hotkey from preferences
+            {
                 KeyCombination combo;
-                if (load_key_combination(g_config, &combo)) {
+                if (preferences_load_key_combination(&combo)) {
                     keylogger_set_combination(&combo);
                 } else {
                     // Use default
@@ -368,9 +342,9 @@ static void continue_app_initialization(void) {
 
     #ifdef YAKETY_TRAY_APP
     // Check for first run and offer auto-launch
-    if (config_get_bool(g_config, "first_run", true)) {
-        config_set_bool(g_config, "first_run", false);
-        config_save(g_config);
+    if (preferences_get_bool("first_run", true)) {
+        preferences_set_bool("first_run", false);
+        preferences_save();
 
         if (dialog_confirm("Welcome to Yakety",
                           "Would you like Yakety to start automatically when you log in?")) {
@@ -428,12 +402,11 @@ int APP_MAIN(int argc, char** argv) {
 int APP_MAIN(int argc, char** argv) {
 #endif
 
+    const char* custom_model_path = NULL;
     // Parse command line arguments for CLI version
     #ifndef YAKETY_TRAY_APP
-    const char* custom_model_path = parse_cli_args(argc, argv);
+    custom_model_path = parse_cli_args(argc, argv);
     #else
-    const char* custom_model_path = NULL;
-    (void)custom_model_path; // Suppress unused variable warning
         #ifndef _WIN32
         (void)argc;
         (void)argv;
@@ -445,39 +418,30 @@ int APP_MAIN(int argc, char** argv) {
     log_info("=== Yakety startup timing ===");
     log_info("App started at %.3f seconds", utils_now());
 
-    // Load configuration
-    g_config = config_create();
-    if (!g_config) {
-        fprintf(stderr, "Failed to load configuration\n");
+    // Initialize preferences
+    if (!preferences_init()) {
+        fprintf(stderr, "Failed to initialize preferences\n");
         log_cleanup();
         return 1;
     }
 
-    #ifndef YAKETY_TRAY_APP
-    // For CLI version, override model path if provided
     if (custom_model_path) {
         log_info("Using custom model path: %s", custom_model_path);
-        config_set_string(g_config, "model", custom_model_path);
+        preferences_set_string("model", custom_model_path);
     }
-    #endif
 
     // Set up signal handlers
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
 
     // Initialize app
-    AppConfig config = {
-        .name = "Yakety",
-        .version = "1.0",
-        #ifdef YAKETY_TRAY_APP
-        .is_console = false,
-        #else
-        .is_console = true,
-        #endif
-        .on_ready = on_app_ready
-    };
-
-    if (app_init(&config) != 0) {
+    #ifdef YAKETY_TRAY_APP
+    bool is_console = false;
+    #else
+    bool is_console = true;
+    #endif
+    
+    if (app_init("Yakety", "1.0", is_console, on_app_ready) != 0) {
         fprintf(stderr, "Failed to initialize app\n");
         return 1;
     }
@@ -485,25 +449,17 @@ int APP_MAIN(int argc, char** argv) {
     // Initialize overlay
     overlay_init();
 
-    // Create audio recorder
-    AudioConfig audio_config = {
-        .sample_rate = 16000,
-        .channels = 1,
-        .bits_per_sample = 16
-    };
-
-    g_recorder = audio_recorder_create(&audio_config);
-    if (!g_recorder) {
-        log_error("Failed to create audio recorder");
+    // Initialize audio recorder
+    if (!audio_recorder_init()) {
+        log_error("Failed to initialize audio recorder");
         overlay_cleanup();
         app_cleanup();
-        config_destroy(g_config);
+        preferences_cleanup();
         log_cleanup();
         return 1;
     }
 
     AppState state = {
-        .recorder = g_recorder,
         .recording = false,
         .recording_start_time = 0
     };
@@ -522,11 +478,11 @@ int APP_MAIN(int argc, char** argv) {
         menu_destroy(g_menu);
     }
     #endif
-    audio_recorder_destroy(state.recorder);
+    audio_recorder_cleanup();
     transcription_cleanup();
     overlay_cleanup();
     app_cleanup();
-    config_destroy(g_config);
+    preferences_cleanup();
     log_cleanup();
 
     return 0;

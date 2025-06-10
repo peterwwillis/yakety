@@ -47,8 +47,21 @@ mmdc -i flow-cli.mermaid -o flow-cli.svg
 4. Main loop: hotkey press → record → transcribe → paste
 
 ### Key Differences
-- **Tray App**: Menu system, GUI dialogs, first-run setup
-- **CLI App**: Command-line parsing, console-only output, simpler error handling
+
+**Tray App (Complex)**:
+- Menu system with multiple callbacks
+- GUI dialogs for configuration, permissions, first-run setup
+- Launch-at-login management
+- Accessibility permission handling on macOS
+- Fallback model loading with retry logic
+- Welcome dialog and auto-launch setup
+
+**CLI App (Simple)**:
+- Command-line argument parsing only
+- Console logging instead of dialogs
+- Direct exit on errors (no retry logic)
+- No GUI components or menus
+- Minimal error handling - just log and exit
 
 ### Async Operations
 - Model loading happens on background thread to avoid blocking UI

@@ -10,7 +10,7 @@
 #endif
 #include "audio.h"
 
-static AudioRecorder* recorder = NULL;
+// Using singleton audio recorder
 static volatile bool should_stop = false;
 
 void signal_handler(int sig) {
@@ -21,17 +21,12 @@ void signal_handler(int sig) {
 }
 
 void print_usage(const char* program_name) {
-    printf("Usage: %s <output_file> [options]\n", program_name);
+    printf("Usage: %s [options] <output_file.wav>\n", program_name);
     printf("\nOptions:\n");
-    printf("  -r, --rate RATE      Sample rate (default: 44100)\n");
-    printf("  -c, --channels CHAN  Number of channels (default: 2)\n");
-    printf("  -b, --bits BITS      Bits per sample (default: 16)\n");
-    printf("  -w, --whisper        Use Whisper-optimized settings (16kHz mono)\n");
     printf("  -h, --help           Show this help message\n");
-    printf("\nExamples:\n");
-    printf("  %s recording.wav\n", program_name);
-    printf("  %s -w speech.wav          # Whisper-optimized recording\n", program_name);
-    printf("  %s -r 48000 -c 1 mono.wav # 48kHz mono recording\n", program_name);
+    printf("\nRecords audio in 16kHz mono format (Whisper compatible).\n");
+    printf("\nExample:\n");
+    printf("  %s recording.wav     # Record to file\n", program_name);
     printf("\nPress Ctrl+C to stop recording.\n");
 }
 
@@ -43,33 +38,11 @@ int main(int argc, char* argv[]) {
     
     // Parse command line arguments
     const char* output_file = NULL;
-    AudioConfig config = HIGH_QUALITY_AUDIO_CONFIG;
-    bool use_whisper_config = false;
     
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             print_usage(argv[0]);
             return 0;
-        } else if (strcmp(argv[i], "-w") == 0 || strcmp(argv[i], "--whisper") == 0) {
-            use_whisper_config = true;
-        } else if ((strcmp(argv[i], "-r") == 0 || strcmp(argv[i], "--rate") == 0) && i + 1 < argc) {
-            config.sample_rate = atoi(argv[++i]);
-            if (config.sample_rate <= 0) {
-                fprintf(stderr, "Error: Invalid sample rate\n");
-                return 1;
-            }
-        } else if ((strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--channels") == 0) && i + 1 < argc) {
-            config.channels = atoi(argv[++i]);
-            if (config.channels <= 0 || config.channels > 2) {
-                fprintf(stderr, "Error: Invalid channel count (1-2 supported)\n");
-                return 1;
-            }
-        } else if ((strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--bits") == 0) && i + 1 < argc) {
-            config.bits_per_sample = atoi(argv[++i]);
-            if (config.bits_per_sample != 16 && config.bits_per_sample != 24 && config.bits_per_sample != 32) {
-                fprintf(stderr, "Error: Invalid bits per sample (16, 24, or 32 supported)\n");
-                return 1;
-            }
         } else if (argv[i][0] != '-') {
             if (output_file == NULL) {
                 output_file = argv[i];
@@ -90,44 +63,35 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
-    // Use Whisper config if requested
-    if (use_whisper_config) {
-        config = WHISPER_AUDIO_CONFIG;
-    }
-    
     // Set up signal handlers
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
     
     printf("🎤 Audio Recorder\n");
     printf("📁 Output file: %s\n", output_file);
-    printf("⚙️  Configuration:\n");
-    printf("   Sample rate: %d Hz\n", config.sample_rate);
-    printf("   Channels: %d (%s)\n", config.channels, config.channels == 1 ? "mono" : "stereo");
-    printf("   Bits per sample: %d\n", config.bits_per_sample);
+    printf("⚙️  Configuration: 16kHz mono (Whisper compatible)\n");
     printf("\n");
     
     // Miniaudio handles permissions automatically
     printf("✅ Microphone permission granted\n\n");
     
-    // Create audio recorder
-    recorder = audio_recorder_create(&config);
-    if (!recorder) {
-        fprintf(stderr, "❌ Error: Failed to create audio recorder\n");
+    // Initialize audio recorder
+    if (!audio_recorder_init()) {
+        fprintf(stderr, "❌ Error: Failed to initialize audio recorder\n");
         return 1;
     }
     
     // Start recording
     printf("🔴 Starting recording... (Press Ctrl+C to stop)\n");
-    if (audio_recorder_start_file(recorder, output_file) != 0) {
+    if (audio_recorder_start_file(output_file) != 0) {
         fprintf(stderr, "❌ Error: Failed to start recording\n");
-        audio_recorder_destroy(recorder);
+        audio_recorder_cleanup();
         return 1;
     }
     
     // Recording loop
     printf("🎵 Recording to %s...\n", output_file);
-    while (!should_stop && audio_recorder_is_recording(recorder)) {
+    while (!should_stop && audio_recorder_is_recording()) {
 #ifdef _WIN32
         Sleep(100); // Sleep for 100ms
 #else
@@ -136,7 +100,7 @@ int main(int argc, char* argv[]) {
         
         // Print duration every second
         static int last_duration = -1;
-        int duration = (int)audio_recorder_get_duration(recorder);
+        int duration = (int)audio_recorder_get_duration();
         if (duration != last_duration) {
             printf("\r⏱️  Duration: %02d:%02d", duration / 60, duration % 60);
             fflush(stdout);
@@ -146,17 +110,17 @@ int main(int argc, char* argv[]) {
     
     // Stop recording
     printf("\n🛑 Stopping recording...\n");
-    if (audio_recorder_stop(recorder) != 0) {
+    if (audio_recorder_stop() != 0) {
         fprintf(stderr, "❌ Warning: Error stopping recording\n");
     }
     
     // Show final duration
-    double final_duration = audio_recorder_get_duration(recorder);
+    double final_duration = audio_recorder_get_duration();
     printf("✅ Recording saved: %s\n", output_file);
     printf("⏱️  Final duration: %.2f seconds\n", final_duration);
     
     // Cleanup
-    audio_recorder_destroy(recorder);
+    audio_recorder_cleanup();
     
     return 0;
 }

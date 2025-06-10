@@ -8,11 +8,21 @@
 
 #pragma comment(lib, "Shcore.lib")
 
+// Internal AppConfig struct for Windows
+typedef struct {
+    const char* name;
+    const char* version;
+    bool is_console;
+    AppReadyCallback on_ready;
+    bool running;
+} AppConfig;
+
+// Define a custom message for the app ready event
+#define WM_APP_READY (WM_USER + 3)
+
 HWND g_hwnd = NULL;
-static bool g_running = false;
 static AppConfig g_config = {0};
 static const char* WINDOW_CLASS_NAME = "YaketyAppWindow";
-bool g_is_console = false;
 
 // Window procedure for message handling
 static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -22,10 +32,10 @@ static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM l
             return 0;
 
         case WM_CLOSE:
-            g_running = false;
+            utils_atomic_write_bool(&g_config.running, false);
             return 0;
 
-        case WM_USER + 1:
+        case WM_APP_READY:
             // Call on_ready callback when message loop is running
             if (g_config.on_ready) {
                 g_config.on_ready();
@@ -36,9 +46,9 @@ static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM l
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-int app_init(const AppConfig* config) {
-    if (!config) {
-        log_error("Invalid app configuration");
+int app_init(const char* name, const char* version, bool is_console, AppReadyCallback on_ready) {
+    if (!name || !version) {
+        log_error("Invalid app parameters");
         return -1;
     }
 
@@ -52,12 +62,12 @@ int app_init(const AppConfig* config) {
         }
     }
 
-    // Copy configuration
-    g_config.name = config->name ? utils_strdup(config->name) : utils_strdup("Yakety");
-    g_config.version = config->version ? utils_strdup(config->version) : utils_strdup("1.0");
-    g_config.is_console = config->is_console;
-    g_config.on_ready = config->on_ready;
-    g_is_console = config->is_console;
+    // Store configuration
+    g_config.name = utils_strdup(name);
+    g_config.version = utils_strdup(version);
+    g_config.is_console = is_console;
+    g_config.on_ready = on_ready;
+
     // If this is a GUI app, create a hidden window for message processing
     if (!g_config.is_console) {
         HINSTANCE hInstance = GetModuleHandle(NULL);
@@ -97,14 +107,15 @@ int app_init(const AppConfig* config) {
         ShowWindow(g_hwnd, SW_HIDE);
     }
 
-    g_running = true;
+    utils_atomic_write_bool(&g_config.running, true);
     log_info("App initialized: %s v%s", g_config.name, g_config.version);
 
     // Call on_ready callback if provided
     if (g_config.on_ready) {
         if (!g_config.is_console) {
             // For GUI apps, post a message to call on_ready after message loop starts
-            PostMessage(g_hwnd, WM_USER + 1, 0, 0);
+            // See WindowProc above for handling of WM_APP_READY message
+            PostMessage(g_hwnd, WM_APP_READY, 0, 0);
         } else {
             // For console apps, call it directly
             log_info("Calling on_ready callback");
@@ -137,13 +148,13 @@ void app_cleanup(void) {
 
 void app_run(void) {
     MSG msg;
-    
+
     log_info("App message loop started");
-    while (g_running) {
+    while (utils_atomic_read_bool(&g_config.running)) {
         // Process Windows messages (NULL = all windows for current thread)
         while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
             if (msg.message == WM_QUIT) {
-                g_running = false;
+                utils_atomic_write_bool(&g_config.running, false);
                 break;
             }
 
@@ -154,16 +165,20 @@ void app_run(void) {
         // Small sleep to prevent CPU spinning
         Sleep(1);
     }
-    
+
     log_info("App message loop ended");
 }
 
 void app_quit(void) {
-    g_running = false;
+    utils_atomic_write_bool(&g_config.running, false);
 
     if (g_hwnd) {
         PostMessage(g_hwnd, WM_CLOSE, 0, 0);
     }
 
     log_info("App quit requested");
+}
+
+bool app_is_console(void) {
+    return g_config.is_console;
 }

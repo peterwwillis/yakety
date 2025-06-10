@@ -6,29 +6,17 @@
 #include "menu.h"
 #include "dialog.h"
 #include "keylogger.h"
-#include "config.h"
+#include "preferences.h"
 #include "utils.h"
 #include "app.h"
 
 // Static variables for menu management
-static Config* s_config = NULL;
-static volatile bool* s_running = NULL;
+static bool* s_running = NULL;
 
 // Global variables for menu management
 static MenuSystem* g_menu = NULL;
 static int g_launch_menu_index = -1;
 
-// Helper to save key combination to config
-static void save_key_combination(Config* config, const KeyCombination* combo) {
-    char buffer[256] = {0};
-    for (int i = 0; i < combo->count; i++) {
-        if (i > 0) strcat(buffer, ";");
-        char pair[32];
-        snprintf(pair, sizeof(pair), "%X:%X", combo->keys[i].code, combo->keys[i].flags);
-        strcat(buffer, pair);
-    }
-    config_set_string(config, "KeyCombo", buffer);
-}
 
 // Menu callback functions
 static void menu_about(void) {
@@ -61,7 +49,7 @@ static void menu_configure_hotkey(void) {
         "Click in the box below and press your desired key combination:",
         &combo
     );
-    
+
     if (result) {
         // Build display message
         char message[256] = "Hotkey configured:\n";
@@ -78,15 +66,13 @@ static void menu_configure_hotkey(void) {
             strcat(message, key_info);
         }
         dialog_info("Hotkey Configured", message);
-        
+
         // Update the keylogger to monitor this combination
         keylogger_set_combination(&combo);
-        
-        // Save to config
-        if (s_config) {
-            save_key_combination(s_config, &combo);
-            config_save(s_config);
-        }
+
+        // Save to preferences
+        preferences_save_key_combination(&combo);
+        preferences_save();
     }
 }
 
@@ -111,13 +97,12 @@ static void menu_toggle_launch_at_login(void) {
 }
 
 static void menu_quit(void) {
-    if (s_running) *s_running = false;
+    utils_atomic_write_bool(s_running, false);
     app_quit();
 }
 
 // Initialize menu system with external state
-void menu_init(Config* config, volatile bool* running) {
-    s_config = config;
+void menu_init(bool* running) {
     s_running = running;
 }
 

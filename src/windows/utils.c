@@ -1,6 +1,6 @@
 #include "../utils.h"
 #include "../logging.h"
-#include "../config.h"
+#include "../preferences.h"
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,28 +42,21 @@ void utils_sleep_ms(int milliseconds) {
 }
 
 const char* utils_get_model_path(void) {
-    return utils_get_model_path_with_config(NULL);
-}
-
-const char* utils_get_model_path_with_config(void* config) {
     static char model_path[MAX_PATH] = {0};
     
     log_info("🔍 Searching for Whisper model...\n");
     
-    // Check if we have a config to get model path from
-    if (config) {
-        Config* cfg = (Config*)config;
-        const char* config_model = config_get_string(cfg, "model");
-        if (config_model && strlen(config_model) > 0) {
-            log_info("  Checking config model: %s\n", config_model);
-            if (GetFileAttributesA(config_model) != INVALID_FILE_ATTRIBUTES) {
-                log_info("  ✅ Found model from config\n");
-                strncpy_s(model_path, MAX_PATH, config_model, _TRUNCATE);
-                return model_path;
-            } else {
-                log_info("  ❌ Config model not found or not accessible\n");
-            }
-        }
+    // Check if we have a model path from preferences
+    const char* config_model = preferences_get_string("model");
+    if (config_model && strlen(config_model) > 0) {
+        log_info("  Checking preferences model: %s\n", config_model);
+        if (GetFileAttributesA(config_model) != INVALID_FILE_ATTRIBUTES) {
+            log_info("  ✅ Found model from preferences\n");
+            strncpy_s(model_path, MAX_PATH, config_model, _TRUNCATE);
+            return model_path;
+        } else {
+            log_info("  ❌ Preferences model not found or not accessible\n");
+    }
     }
     
     // Check current directory first
@@ -275,8 +268,8 @@ static unsigned __stdcall async_work_thread(void* data) {
     return 0;
 }
 
-void utils_async_execute(async_work_fn work, void* arg, async_callback_fn callback) {
-    log_info("utils_async_execute called");
+void utils_execute_async(async_work_fn work, void* arg, async_callback_fn callback) {
+    log_info("utils_execute_async called");
     
     ensure_message_window();
     
@@ -324,7 +317,7 @@ static VOID CALLBACK DelayTimerProc(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWOR
     free(data);
 }
 
-void utils_delay_on_main_thread(int delay_ms, delay_callback_fn callback, void* arg) {
+void utils_execute_main_thread(int delay_ms, delay_callback_fn callback, void* arg) {
     ensure_message_window();
     
     DelayCallbackData* data = malloc(sizeof(DelayCallbackData));
@@ -417,4 +410,30 @@ char* utils_strdup(const char* str) {
 
 int utils_stricmp(const char* s1, const char* s2) {
     return _stricmp(s1, s2);
+}
+
+// Atomic operations for thread-safe access
+bool utils_atomic_read_bool(bool* ptr) {
+    // Read a LONG value atomically and convert to bool
+    LONG* long_ptr = (LONG*)ptr;
+    LONG value = InterlockedOr(long_ptr, 0);  // OR with 0 = atomic read
+    return value != 0;
+}
+
+void utils_atomic_write_bool(bool* ptr, bool value) {
+    // Write a LONG value atomically
+    LONG* long_ptr = (LONG*)ptr;
+    InterlockedExchange(long_ptr, value ? 1 : 0);
+}
+
+int utils_atomic_read_int(int* ptr) {
+    // Read an int value atomically
+    LONG* long_ptr = (LONG*)ptr;
+    return (int)InterlockedOr(long_ptr, 0);  // OR with 0 = atomic read
+}
+
+void utils_atomic_write_int(int* ptr, int value) {
+    // Write an int value atomically
+    LONG* long_ptr = (LONG*)ptr;
+    InterlockedExchange(long_ptr, (LONG)value);
 }

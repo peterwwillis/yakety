@@ -8,7 +8,6 @@
 #include <sys/stat.h>
 #include <pthread.h>
 
-extern bool g_is_console;  // Set by app_init
 
 static FILE* g_log_file = NULL;
 static pthread_mutex_t g_log_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -101,7 +100,7 @@ void log_info(const char* format, ...) {
     va_end(args_copy);
     
     // Also log to console/NSLog
-    if (g_is_console) {
+    if (app_is_console()) {
         vprintf(format, args);
         if (format[strlen(format) - 1] != '\n') {
             printf("\n");
@@ -126,7 +125,7 @@ void log_error(const char* format, ...) {
     va_end(args_copy);
     
     // Also log to console/NSLog
-    if (g_is_console) {
+    if (app_is_console()) {
         vfprintf(stderr, format, args);
         if (format[strlen(format) - 1] != '\n') {
             fprintf(stderr, "\n");
@@ -152,7 +151,7 @@ void log_debug(const char* format, ...) {
     va_end(args_copy);
     
     // Also log to console/NSLog
-    if (g_is_console) {
+    if (app_is_console()) {
         vprintf(format, args);
         if (format[strlen(format) - 1] != '\n') {
             printf("\n");

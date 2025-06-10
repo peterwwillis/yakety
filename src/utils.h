@@ -8,7 +8,6 @@ double utils_get_time(void);
 double utils_now(void);  // Returns seconds since first call (app start)
 void utils_sleep_ms(int milliseconds);
 const char* utils_get_model_path(void);
-const char* utils_get_model_path_with_config(void* config);
 
 // Platform-specific utilities
 void utils_open_accessibility_settings(void);
@@ -20,13 +19,13 @@ typedef void* (*async_work_fn)(void* arg);
 typedef void (*async_callback_fn)(void* result);
 
 // Execute work on background thread and call callback on main thread with result
-void utils_async_execute(async_work_fn work, void* arg, async_callback_fn callback);
+void utils_execute_async(async_work_fn work, void* arg, async_callback_fn callback);
 
 // Delay execution
 typedef void (*delay_callback_fn)(void* arg);
 
 // Execute callback on main thread after delay_ms milliseconds
-void utils_delay_on_main_thread(int delay_ms, delay_callback_fn callback, void* arg);
+void utils_execute_main_thread(int delay_ms, delay_callback_fn callback, void* arg);
 
 // Platform abstraction functions
 const char* utils_get_config_dir(void);
@@ -38,5 +37,11 @@ FILE* utils_fopen_write_binary(const char* path);
 FILE* utils_fopen_append(const char* path);
 char* utils_strdup(const char* str);
 int utils_stricmp(const char* s1, const char* s2);
+
+// Atomic operations for thread-safe access to shared variables
+bool utils_atomic_read_bool(bool* ptr);
+void utils_atomic_write_bool(bool* ptr, bool value);
+int utils_atomic_read_int(int* ptr);
+void utils_atomic_write_int(int* ptr, int value);
 
 #endif // UTILS_H
