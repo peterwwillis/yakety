@@ -68,8 +68,8 @@ int app_init(const char* name, const char* version, bool is_console, AppReadyCal
     g_config.is_console = is_console;
     g_config.on_ready = on_ready;
 
-    // If this is a GUI app, create a hidden window for message processing
-    if (!g_config.is_console) {
+    // Create a hidden window for message processing (needed for keyboard hooks even in console mode)
+    {
         HINSTANCE hInstance = GetModuleHandle(NULL);
 
         // Register window class
@@ -112,15 +112,9 @@ int app_init(const char* name, const char* version, bool is_console, AppReadyCal
 
     // Call on_ready callback if provided
     if (g_config.on_ready) {
-        if (!g_config.is_console) {
-            // For GUI apps, post a message to call on_ready after message loop starts
-            // See WindowProc above for handling of WM_APP_READY message
-            PostMessage(g_hwnd, WM_APP_READY, 0, 0);
-        } else {
-            // For console apps, call it directly
-            log_info("Calling on_ready callback");
-            g_config.on_ready();
-        }
+        // Both GUI and console apps should defer on_ready until message loop starts
+        // This ensures keyboard hooks are installed after the message loop is running
+        PostMessage(g_hwnd, WM_APP_READY, 0, 0);
     }
     return 0;
 }
@@ -189,9 +183,17 @@ bool app_is_running(void) {
 
 // Blocking async execution with event pumping
 typedef struct {
-    volatile LONG completed;
+    bool completed;
     void* result;
 } BlockingAsyncContext;
+
+// Multiple tasks context for Promise.all() equivalent  
+typedef struct {
+    int completed_count;
+    int total_count;
+    void** results;
+    bool all_completed;
+} BlockingAsyncAllContext;
 
 // Global context for the blocking callback (Windows doesn't have closures)
 static BlockingAsyncContext* g_blocking_ctx = NULL;
@@ -199,7 +201,7 @@ static BlockingAsyncContext* g_blocking_ctx = NULL;
 static void blocking_completion_callback(void* result) {
     if (g_blocking_ctx) {
         g_blocking_ctx->result = result;
-        InterlockedExchange(&g_blocking_ctx->completed, 1);
+        utils_atomic_write_bool(&g_blocking_ctx->completed, true);
     }
 }
 
@@ -211,14 +213,14 @@ void* app_execute_async_blocking(async_work_fn work, void* arg) {
     }
     
     // For GUI apps, use the async approach with message pumping
-    BlockingAsyncContext ctx = {0, NULL};
+    BlockingAsyncContext ctx = {false, NULL};
     g_blocking_ctx = &ctx;  // Set global context
     
     // Start the async work
     utils_execute_async(work, arg, blocking_completion_callback);
     
     // Pump messages until completion
-    while (InterlockedOr(&ctx.completed, 0) == 0 && app_is_running()) {
+    while (!utils_atomic_read_bool(&ctx.completed) && app_is_running()) {
         MSG msg;
         if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
             TranslateMessage(&msg);
@@ -255,4 +257,156 @@ void app_sleep_responsive(int milliseconds) {
         // Small yield
         Sleep(1);
     }
+}
+
+// Helper structures for concurrent execution
+typedef struct {
+    async_work_fn work;
+    void* arg;
+    int task_index;
+    BlockingAsyncAllContext* ctx;
+} ConcurrentTaskData;
+
+// Completion callback for concurrent tasks
+static void blocking_all_completion_callback(void* result, int task_index, BlockingAsyncAllContext* ctx) {
+    if (ctx) {
+        ctx->results[task_index] = result;
+        
+        // Atomically increment completed count using Windows interlocked functions
+        int completed = InterlockedIncrement((LONG*)&ctx->completed_count);
+        
+        // Check if all tasks are done
+        if (completed >= ctx->total_count) {
+            utils_atomic_write_bool(&ctx->all_completed, true);
+        }
+    }
+}
+
+// Thread function wrapper for concurrent task execution
+static DWORD WINAPI concurrent_task_wrapper(LPVOID data) {
+    ConcurrentTaskData* task_data = (ConcurrentTaskData*)data;
+    void* result = task_data->work(task_data->arg);
+    
+    // Post completion message to main thread
+    int task_index = task_data->task_index;
+    BlockingAsyncAllContext* ctx = task_data->ctx;
+    
+    // For Windows, we'll use PostMessage to schedule the completion callback on main thread
+    if (g_hwnd) {
+        // Create a custom message structure
+        typedef struct {
+            void* result;
+            int task_index;
+            BlockingAsyncAllContext* ctx;
+            ConcurrentTaskData* task_data;
+        } CompletionMessage;
+        
+        CompletionMessage* msg = malloc(sizeof(CompletionMessage));
+        if (msg) {
+            msg->result = result;
+            msg->task_index = task_index;
+            msg->ctx = ctx;
+            msg->task_data = task_data;
+            
+            // Use a custom message for completion
+            PostMessage(g_hwnd, WM_USER + 100, 0, (LPARAM)msg);
+        }
+    } else {
+        // If no window, call directly (console mode)
+        blocking_all_completion_callback(result, task_index, ctx);
+        free(task_data);
+    }
+    
+    return 0;
+}
+
+void** app_execute_async_blocking_all(async_work_fn* tasks, void** args, int count) {
+    if (!tasks || count <= 0) {
+        return NULL;
+    }
+    
+    // Allocate results array
+    void** results = calloc(count, sizeof(void*));
+    if (!results) {
+        return NULL;
+    }
+    
+    // Setup context for all tasks
+    BlockingAsyncAllContext ctx = {
+        .completed_count = 0,
+        .total_count = count,
+        .results = results,
+        .all_completed = false
+    };
+    
+    // Start all tasks concurrently using Windows threads
+    HANDLE* threads = malloc(count * sizeof(HANDLE));
+    if (!threads) {
+        free(results);
+        return NULL;
+    }
+    
+    for (int i = 0; i < count; i++) {
+        ConcurrentTaskData* task_data = malloc(sizeof(ConcurrentTaskData));
+        if (!task_data) {
+            // Clean up on failure
+            free(threads);
+            free(results);
+            return NULL;
+        }
+        
+        task_data->work = tasks[i];
+        task_data->arg = args ? args[i] : NULL;
+        task_data->task_index = i;
+        task_data->ctx = &ctx;
+        
+        threads[i] = CreateThread(NULL, 0, concurrent_task_wrapper, task_data, 0, NULL);
+        if (!threads[i]) {
+            // Clean up on failure
+            free(task_data);
+            free(threads);
+            free(results);
+            return NULL;
+        }
+    }
+    
+    // We don't need to hold thread handles - they're detached
+    for (int i = 0; i < count; i++) {
+        if (threads[i]) {
+            CloseHandle(threads[i]);
+        }
+    }
+    free(threads);
+    
+    // Pump messages until all tasks complete
+    while (!utils_atomic_read_bool(&ctx.all_completed) && app_is_running()) {
+        MSG msg;
+        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+            // Handle our custom completion message
+            if (msg.message == WM_USER + 100) {
+                typedef struct {
+                    void* result;
+                    int task_index;
+                    BlockingAsyncAllContext* ctx;
+                    ConcurrentTaskData* task_data;
+                } CompletionMessage;
+                
+                CompletionMessage* completion = (CompletionMessage*)msg.lParam;
+                if (completion) {
+                    blocking_all_completion_callback(completion->result, completion->task_index, completion->ctx);
+                    free(completion->task_data);
+                    free(completion);
+                }
+            } else {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
+        }
+        
+        // Small yield to prevent CPU spinning
+        Sleep(1);
+    }
+    
+    // Return results array (caller must free)
+    return results;
 }

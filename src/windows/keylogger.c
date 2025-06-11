@@ -97,10 +97,22 @@ static bool check_combination_match(void) {
 
 // Low-level keyboard hook procedure
 LRESULT CALLBACK keyboard_proc(int nCode, WPARAM wParam, LPARAM lParam) {
+    static int event_count = 0;
+    
     if (nCode >= 0 && g_keylogger && !g_keylogger->paused) {
         KBDLLHOOKSTRUCT* kbdStruct = (KBDLLHOOKSTRUCT*)lParam;
         bool keyDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
         bool keyUp = (wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
+        
+        // Debug logging for first few events and Right Ctrl specifically
+        if (event_count < 5 || kbdStruct->scanCode == 0x1D) {
+            bool extended = (kbdStruct->flags & LLKHF_EXTENDED) != 0;
+            const char* ctrl_type = (kbdStruct->scanCode == 0x1D) ? 
+                (extended ? "RIGHT_CTRL" : "LEFT_CTRL") : "OTHER";
+            log_info("Key event %d: scanCode=0x%02X, flags=0x%08X, extended=%d, down=%d, up=%d (%s)", 
+                     event_count, kbdStruct->scanCode, kbdStruct->flags, extended, keyDown, keyUp, ctrl_type);
+            if (event_count < 20) event_count++;
+        }
         
         if (keyDown) {
             // Add key to pressed list
@@ -161,17 +173,23 @@ int keylogger_init(KeyCallback on_press, KeyCallback on_release, void* userdata)
     g_keylogger->userdata = userdata;
     
     // Install low-level keyboard hook
+    log_info("Installing keyboard hook...");
     g_keylogger->keyboard_hook = SetWindowsHookEx(WH_KEYBOARD_LL, keyboard_proc, GetModuleHandle(NULL), 0);
     
     if (!g_keylogger->keyboard_hook) {
         DWORD error = GetLastError();
-        log_error("Failed to install keyboard hook. Error: %lu", error);
+        log_error("Failed to install keyboard hook. Error: %lu (0x%08lX)", error, error);
+        if (error == ERROR_ACCESS_DENIED) {
+            log_error("Access denied - try running as administrator");
+        } else if (error == ERROR_HOOK_NOT_INSTALLED) {
+            log_error("Hook type not supported");
+        }
         free(g_keylogger);
         g_keylogger = NULL;
         return -1;
     }
     
-    log_info("Keylogger initialized successfully");
+    log_info("Keylogger initialized successfully - hook handle: %p", g_keylogger->keyboard_hook);
     return 0;
 }
 

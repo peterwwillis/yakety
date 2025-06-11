@@ -130,10 +130,10 @@ typedef struct {
 
 // Multiple tasks context for Promise.all() equivalent
 typedef struct {
-    volatile int completed_count;
+    int completed_count;
     int total_count;
     void** results;
-    volatile bool all_completed;
+    bool all_completed;
 } BlockingAsyncAllContext;
 
 

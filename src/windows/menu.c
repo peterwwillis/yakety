@@ -40,6 +40,9 @@ static bool g_menu_showing = false;
 
 static const wchar_t* WINDOW_CLASS_NAME = L"YaketyMenuWindow";
 
+// Forward declaration for singleton menu system state
+static MenuSystem* g_menu = NULL;
+
 // Initialize dark mode APIs
 static void init_dark_mode() {
     HMODULE hUxtheme = LoadLibraryExW(L"uxtheme.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
@@ -147,9 +150,6 @@ int menu_add_separator(MenuSystem* menu) {
     item->is_separator = true;
     return menu->item_count++;
 }
-
-// Singleton menu system state
-static MenuSystem* g_menu = NULL;
 
 int menu_init(void) {
     if (g_menu) {
