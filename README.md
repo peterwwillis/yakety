@@ -210,6 +210,27 @@ Grant accessibility permissions:
 ### Windows
 Run as administrator if hotkeys don't work in elevated applications.
 
+## Remote Development (macOS → Windows)
+
+You can develop Yakety on Windows from a macOS machine using Claude Code for seamless cross-platform development:
+
+### Quick Setup
+1. **On Windows**: Run `wsl/setup-wsl-ssh.sh` (one-time setup)
+2. **After reboot**: Run `wsl/start-wsl-ssh.bat` as administrator  
+3. **Tell Claude Code**: `"My Windows machine is at 192.168.1.21, username badlogic, workspace at /mnt/c/workspaces/yakety/"`
+
+### Development Workflow
+```bash
+# Claude Code can execute these automatically:
+rsync -av src/ badlogic@192.168.1.21:/mnt/c/workspaces/yakety/src/  # Sync changes
+ssh badlogic@192.168.1.21 "cd /mnt/c/workspaces/yakety && cmd.exe /c 'build.bat'"  # Build
+ssh badlogic@192.168.1.21 "build/bin/yakety-cli.exe"  # Test
+```
+
+**Benefits**: Edit locally on macOS with fast tools, build/test on Windows via SSH, all automated through Claude Code.
+
+📖 **Full guide**: [wsl/REMOTE_DEVELOPMENT.md](wsl/REMOTE_DEVELOPMENT.md)
+
 ## Architecture
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for details on the modular architecture and how to extend the application.
