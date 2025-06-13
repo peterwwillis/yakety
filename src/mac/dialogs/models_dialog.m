@@ -23,6 +23,7 @@
 - (void)modelButtonClicked:(id)sender;
 - (void)applyButtonClicked:(id)sender;
 - (void)cancelButtonClicked:(id)sender;
+- (void)deleteModelClicked:(id)sender;
 - (void)updateModelButtonStates:(NSWindow *)window selectedPath:(NSString *)selectedPath;
 - (void)updateButtonStatesInView:(NSView *)view selectedPath:(NSString *)selectedPath;
 @end
@@ -128,14 +129,14 @@ bool models_dialog_show(const char *title, char *selected_model, size_t model_bu
         NSMutableArray *allModels = [NSMutableArray array];
         
         // Bundled model (always available as "downloaded")
-        [allModels addObject:@{
+        [allModels addObject:[@{
             @"name": [NSString stringWithUTF8String:BUNDLED_MODEL.name],
             @"description": [NSString stringWithUTF8String:BUNDLED_MODEL.description],
             @"size": [NSString stringWithUTF8String:BUNDLED_MODEL.size], 
             @"path": @"", // Empty path means bundled
             @"state": @"downloaded",
             @"download_url": @"" // No download needed
-        }];
+        } mutableCopy]];
         
         // User models from ~/.yakety/models/
         for (NSString *filename in userModelFiles) {
@@ -174,14 +175,14 @@ bool models_dialog_show(const char *title, char *selected_model, size_t model_bu
                     description = @"Custom model installed by user. Performance and accuracy depend on the specific model variant and quantization.";
                 }
                 
-                [allModels addObject:@{
+                [allModels addObject:[@{
                     @"name": displayName,
                     @"description": description,
                     @"size": sizeString,
                     @"path": fullPath,
                     @"state": @"downloaded",
                     @"download_url": @"" // No download needed
-                }];
+                } mutableCopy]];
             }
         }
         
@@ -193,14 +194,14 @@ bool models_dialog_show(const char *title, char *selected_model, size_t model_bu
             
             // Only add if the model doesn't exist on disk (to avoid duplicates)
             if (!exists) {
-                [allModels addObject:@{
+                [allModels addObject:[@{
                     @"name": [NSString stringWithUTF8String:model->name],
                     @"description": [NSString stringWithUTF8String:model->description],
                     @"size": [NSString stringWithUTF8String:model->size],
                     @"path": modelPath,
                     @"state": @"available",
                     @"download_url": [NSString stringWithUTF8String:model->download_url]
-                }];
+                } mutableCopy]];
             }
         }
         
@@ -426,6 +427,106 @@ bool models_dialog_show(const char *title, char *selected_model, size_t model_bu
     NSWindow *window = objc_getAssociatedObject(sender, "window");
     [NSApp stopModalWithCode:NSModalResponseCancel];
 }
+
+- (void)deleteModelClicked:(id)sender {
+    NSDictionary *modelData = objc_getAssociatedObject(sender, "modelData");
+    NSTableView *tableView = objc_getAssociatedObject(sender, "tableView");
+    
+    if (!modelData) return;
+    
+    NSString *modelName = modelData[@"name"];
+    NSString *modelPath = modelData[@"path"];
+    
+    // Don't allow deletion of bundled model (empty path)
+    if ([modelPath length] == 0) {
+        return;
+    }
+    
+    // Confirm deletion
+    NSAlert *alert = [[NSAlert alloc] init];
+    [alert setMessageText:[NSString stringWithFormat:@"Delete %@?", modelName]];
+    [alert setInformativeText:@"This will permanently delete the model file from your computer. This action cannot be undone."];
+    [alert addButtonWithTitle:@"Delete"];
+    [alert addButtonWithTitle:@"Cancel"];
+    [alert setAlertStyle:NSAlertStyleWarning];
+    
+    // Use sheet modal to avoid closing the parent models dialog
+    NSWindow *parentWindow = [[NSApplication sharedApplication] keyWindow];
+    [alert beginSheetModalForWindow:parentWindow completionHandler:^(NSModalResponse response) {
+        if (response == NSAlertFirstButtonReturn) {
+            // Delete the file
+            NSFileManager *fileManager = [NSFileManager defaultManager];
+            NSError *error = nil;
+            BOOL success = [fileManager removeItemAtPath:modelPath error:&error];
+            
+            if (success) {
+                // Check if the deleted model was currently selected
+                NSMutableString *selectedModelPath = objc_getAssociatedObject(tableView, "selectedModelPath");
+                NSMutableString *selectedDownloadUrl = objc_getAssociatedObject(tableView, "selectedDownloadUrl");
+                BOOL wasSelected = [selectedModelPath isEqualToString:modelPath];
+                
+                // Update the model state to "available" instead of removing it
+                NSMutableArray *allModels = objc_getAssociatedObject(tableView, "allModels");
+                
+                // Find the deleted model and update its state
+                for (NSInteger i = 0; i < [allModels count]; i++) {
+                    NSMutableDictionary *model = allModels[i];
+                    if ([model[@"path"] isEqualToString:modelPath]) {
+                        // Convert to mutable dictionary if needed
+                        if (![model isKindOfClass:[NSMutableDictionary class]]) {
+                            NSMutableDictionary *mutableModel = [model mutableCopy];
+                            [allModels replaceObjectAtIndex:i withObject:mutableModel];
+                            model = mutableModel;
+                        }
+                        
+                        // Update state to available and add download URL
+                        [model setObject:@"available" forKey:@"state"];
+                        
+                        // Find the download URL from the model definitions
+                        NSString *modelName = model[@"name"];
+                        for (int j = 0; j < DOWNLOADABLE_MODELS_COUNT; j++) {
+                            const ModelInfo *modelInfo = &DOWNLOADABLE_MODELS[j];
+                            NSString *defName = [NSString stringWithUTF8String:modelInfo->name];
+                            if ([defName isEqualToString:modelName]) {
+                                [model setObject:[NSString stringWithUTF8String:modelInfo->download_url] forKey:@"download_url"];
+                                break;
+                            }
+                        }
+                        
+                        break;
+                    }
+                }
+                
+                // If the deleted model was selected, keep it selected but update to download state
+                if (wasSelected) {
+                    // Keep the same model selected, but now it needs to be downloaded
+                    // selectedModelPath stays the same (the path where it should be downloaded)
+                    // Update the download URL so Apply will trigger download
+                    NSString *modelName = modelData[@"name"];
+                    for (int j = 0; j < DOWNLOADABLE_MODELS_COUNT; j++) {
+                        const ModelInfo *modelInfo = &DOWNLOADABLE_MODELS[j];
+                        NSString *defName = [NSString stringWithUTF8String:modelInfo->name];
+                        if ([defName isEqualToString:modelName]) {
+                            [selectedDownloadUrl setString:[NSString stringWithUTF8String:modelInfo->download_url]];
+                            break;
+                        }
+                    }
+                }
+                
+                // Reload the table view - this will recreate all cells with correct button states
+                [tableView reloadData];
+            } else {
+                // Show error message as sheet
+                NSAlert *errorAlert = [[NSAlert alloc] init];
+                [errorAlert setMessageText:@"Delete Failed"];
+                [errorAlert setInformativeText:[NSString stringWithFormat:@"Failed to delete %@: %@", modelName, error ? [error localizedDescription] : @"Unknown error"]];
+                [errorAlert addButtonWithTitle:@"OK"];
+                [errorAlert setAlertStyle:NSAlertStyleCritical];
+                [errorAlert beginSheetModalForWindow:parentWindow completionHandler:nil];
+            }
+        }
+    }];
+}
 @end
 
 @implementation NSWindow (TableViewDataSource)
@@ -483,29 +584,81 @@ bool models_dialog_show(const char *title, char *selected_model, size_t model_bu
     [sizeLabel setFont:[NSFont systemFontOfSize:10]];
     [cardView addSubview:sizeLabel];
     
-    // Status badge - small and next to size
+    // Status badge - using NSButton for better text centering
     NSString *state = modelData[@"state"];
-    NSTextField *statusBadge = [[NSTextField alloc] initWithFrame:NSMakeRect(110, 6, 70, 18)];
+    NSButton *statusBadge = [[NSButton alloc] initWithFrame:NSMakeRect(110, 6, 70, 18)];
+    [statusBadge setButtonType:NSButtonTypeMomentaryPushIn];
     [statusBadge setBordered:NO];
-    [statusBadge setEditable:NO];
-    [statusBadge setSelectable:NO];
-    [statusBadge setAlignment:NSTextAlignmentCenter];
-    [statusBadge setFont:[NSFont boldSystemFontOfSize:9]];
-    
-    if ([state isEqualToString:@"downloaded"] || [state isEqualToString:@"bundled"]) {
-        [statusBadge setStringValue:@"Installed"];
-        [statusBadge setTextColor:[NSColor systemGreenColor]];
-        [statusBadge setBackgroundColor:[[NSColor systemGreenColor] colorWithAlphaComponent:0.15]];
-    } else {
-        [statusBadge setStringValue:@"Available"];
-        [statusBadge setTextColor:[NSColor systemBlueColor]];
-        [statusBadge setBackgroundColor:[[NSColor systemBlueColor] colorWithAlphaComponent:0.15]];
-    }
-    
-    [statusBadge setDrawsBackground:YES];
     [statusBadge setWantsLayer:YES];
     [statusBadge.layer setCornerRadius:3.0];
+    
+    // Create attributed string for proper text styling
+    NSColor *textColor;
+    NSColor *bgColor;
+    NSString *titleText;
+    
+    if ([state isEqualToString:@"downloaded"] || [state isEqualToString:@"bundled"]) {
+        titleText = @"Installed";
+        textColor = [NSColor systemGreenColor];
+        bgColor = [[NSColor systemGreenColor] colorWithAlphaComponent:0.15];
+    } else {
+        titleText = @"Available";
+        textColor = [NSColor systemBlueColor];
+        bgColor = [[NSColor systemBlueColor] colorWithAlphaComponent:0.15];
+    }
+    
+    // Set background using layer
+    [statusBadge.layer setBackgroundColor:[bgColor CGColor]];
+    
+    // Create attributed string for text color
+    NSMutableAttributedString *attributedTitle = [[NSMutableAttributedString alloc] initWithString:titleText];
+    [attributedTitle addAttribute:NSForegroundColorAttributeName 
+                            value:textColor 
+                            range:NSMakeRange(0, [titleText length])];
+    [attributedTitle addAttribute:NSFontAttributeName 
+                            value:[NSFont boldSystemFontOfSize:9] 
+                            range:NSMakeRange(0, [titleText length])];
+    
+    [statusBadge setAttributedTitle:attributedTitle];
+    [statusBadge setEnabled:NO]; // Make it non-clickable, just a visual badge
+    
     [cardView addSubview:statusBadge];
+    
+    // Add delete button for downloaded models (not bundled)  
+    if ([state isEqualToString:@"downloaded"] && [modelData[@"path"] length] > 0) {
+        NSButton *deleteButton = [[NSButton alloc] initWithFrame:NSMakeRect(185, 6, 60, 18)];
+        [deleteButton setButtonType:NSButtonTypeMomentaryPushIn];
+        [deleteButton setTitle:@"Delete"];
+        [deleteButton setFont:[NSFont systemFontOfSize:9]];
+        [deleteButton setBordered:YES];
+        [deleteButton setBezelStyle:NSBezelStyleRounded];
+        [deleteButton setWantsLayer:YES];
+        
+        // Style as a small red button
+        if (@available(macOS 10.12, *)) {
+            [deleteButton setBezelColor:[[NSColor systemRedColor] colorWithAlphaComponent:0.8]];
+        }
+        
+        // Create attributed string for white text
+        NSMutableAttributedString *deleteTitle = [[NSMutableAttributedString alloc] initWithString:@"Delete"];
+        [deleteTitle addAttribute:NSForegroundColorAttributeName 
+                            value:[NSColor whiteColor] 
+                            range:NSMakeRange(0, 6)];
+        [deleteTitle addAttribute:NSFontAttributeName 
+                            value:[NSFont systemFontOfSize:9] 
+                            range:NSMakeRange(0, 6)];
+        
+        [deleteButton setAttributedTitle:deleteTitle];
+        
+        // Store model data for delete action
+        objc_setAssociatedObject(deleteButton, "modelData", modelData, OBJC_ASSOCIATION_RETAIN);
+        objc_setAssociatedObject(deleteButton, "tableView", tableView, OBJC_ASSOCIATION_ASSIGN);
+        
+        [deleteButton setTarget:deleteButton];
+        [deleteButton setAction:@selector(deleteModelClicked:)];
+        
+        [cardView addSubview:deleteButton];
+    }
     
     // Action button
     NSString *modelPath = modelData[@"path"];

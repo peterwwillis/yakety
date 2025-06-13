@@ -24,11 +24,23 @@ typedef struct {
 static Preferences *g_preferences = NULL;
 static char g_config_dir[1024] = {0};
 static char g_config_path[1024] = {0};
+static utils_mutex_t *g_preferences_mutex = NULL;
+
+// Forward declare static functions
+static void set_entry(const char *key, const char *value);
+
+// Ensure mutex is initialized
+static void ensure_preferences_mutex(void) {
+    if (g_preferences_mutex == NULL) {
+        g_preferences_mutex = utils_mutex_create();
+    }
+}
 
 static void create_default_preferences(void) {
-    preferences_set_bool("launch_at_login", false);
-    preferences_set_string("model", "");      // Empty means use embedded model
-    preferences_set_string("language", "en"); // Default to English for low latency
+    // Called from within mutex, use internal functions
+    set_entry("launch_at_login", "false");
+    set_entry("model", "");      // Empty means use embedded model
+    set_entry("language", "en"); // Default to English for low latency
 }
 
 static PreferencesEntry *find_entry(const char *key) {
@@ -89,14 +101,19 @@ static char *trim(char *str) {
 }
 
 bool preferences_init(void) {
+    ensure_preferences_mutex();
+    utils_mutex_lock(g_preferences_mutex);
+    
     if (g_preferences) {
         log_info("Preferences already initialized");
+        utils_mutex_unlock(g_preferences_mutex);
         return true;
     }
 
     g_preferences = (Preferences *) calloc(1, sizeof(Preferences));
     if (!g_preferences) {
         log_error("Failed to allocate preferences");
+        utils_mutex_unlock(g_preferences_mutex);
         return false;
     }
 
@@ -106,6 +123,7 @@ bool preferences_init(void) {
         log_error("Failed to get config directory");
         free(g_preferences);
         g_preferences = NULL;
+        utils_mutex_unlock(g_preferences_mutex);
         return false;
     }
 
@@ -129,6 +147,7 @@ bool preferences_init(void) {
         free(g_preferences->config_path);
         free(g_preferences);
         g_preferences = NULL;
+        utils_mutex_unlock(g_preferences_mutex);
         return false;
     }
 
@@ -176,12 +195,18 @@ bool preferences_init(void) {
         log_info("Created default config at: %s", g_config_path);
     }
 
+    utils_mutex_unlock(g_preferences_mutex);
     return true;
 }
 
 void preferences_cleanup(void) {
-    if (!g_preferences)
+    ensure_preferences_mutex();
+    utils_mutex_lock(g_preferences_mutex);
+    
+    if (!g_preferences) {
+        utils_mutex_unlock(g_preferences_mutex);
         return;
+    }
 
     // Free all entries
     PreferencesEntry *entry = g_preferences->entries;
@@ -198,14 +223,22 @@ void preferences_cleanup(void) {
 
     free(g_preferences);
     g_preferences = NULL;
+    
+    utils_mutex_unlock(g_preferences_mutex);
 }
 
 const char *preferences_get_string(const char *key) {
     if (!key)
         return NULL;
 
+    ensure_preferences_mutex();
+    utils_mutex_lock(g_preferences_mutex);
+    
     PreferencesEntry *entry = find_entry(key);
-    return entry ? entry->value : NULL;
+    const char *result = entry ? entry->value : NULL;
+    
+    utils_mutex_unlock(g_preferences_mutex);
+    return result;
 }
 
 int preferences_get_int(const char *key, int default_value) {
@@ -247,7 +280,11 @@ bool preferences_get_bool(const char *key, bool default_value) {
 void preferences_set_string(const char *key, const char *value) {
     if (!key || !value)
         return;
+    
+    ensure_preferences_mutex();
+    utils_mutex_lock(g_preferences_mutex);
     set_entry(key, value);
+    utils_mutex_unlock(g_preferences_mutex);
 }
 
 void preferences_set_int(const char *key, int value) {
@@ -264,9 +301,13 @@ bool preferences_save(void) {
     if (!g_preferences || !g_preferences->config_path)
         return false;
 
+    ensure_preferences_mutex();
+    utils_mutex_lock(g_preferences_mutex);
+
     FILE *file = utils_fopen_write(g_preferences->config_path);
     if (!file) {
         log_error("Failed to open config file for writing: %s", g_preferences->config_path);
+        utils_mutex_unlock(g_preferences_mutex);
         return false;
     }
 
@@ -282,11 +323,19 @@ bool preferences_save(void) {
 
     fclose(file);
     log_info("Saved config to: %s", g_preferences->config_path);
+    
+    utils_mutex_unlock(g_preferences_mutex);
     return true;
 }
 
 const char *preferences_get_path(void) {
-    return g_config_path;
+    ensure_preferences_mutex();
+    utils_mutex_lock(g_preferences_mutex);
+    
+    const char *result = g_config_path;
+    
+    utils_mutex_unlock(g_preferences_mutex);
+    return result;
 }
 
 // Key combination helpers
@@ -303,13 +352,20 @@ void preferences_save_key_combination(const KeyCombination *combo) {
 }
 
 bool preferences_load_key_combination(KeyCombination *combo) {
-    const char *key_str = preferences_get_string("KeyCombo");
+    ensure_preferences_mutex();
+    utils_mutex_lock(g_preferences_mutex);
+    
+    PreferencesEntry *entry = find_entry("KeyCombo");
+    const char *key_str = entry ? entry->value : NULL;
+    
     if (key_str) {
         // Parse format: code1:flags1;code2:flags2;...
         combo->count = 0;
         char *copy = strdup(key_str);
+        
+        utils_mutex_unlock(g_preferences_mutex);
+        
         char *token = strtok(copy, ";");
-
         while (token && combo->count < 4) {
             unsigned int code, flags;
             if (sscanf(token, "%x:%x", &code, &flags) == 2) {
@@ -322,5 +378,7 @@ bool preferences_load_key_combination(KeyCombination *combo) {
         free(copy);
         return combo->count > 0;
     }
+    
+    utils_mutex_unlock(g_preferences_mutex);
     return false;
 }

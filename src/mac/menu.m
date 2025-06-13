@@ -260,6 +260,20 @@ void menu_update_item(int index, const char *new_title) {
     }
 }
 
+void menu_set_enabled(bool enabled) {
+    if (!g_menu_showing || !statusMenu) {
+        return;
+    }
+    
+    app_dispatch_main(^{
+        for (NSMenuItem *item in [statusMenu itemArray]) {
+            if (![item isSeparatorItem]) {
+                [item setEnabled:enabled];
+            }
+        }
+    });
+}
+
 void menu_destroy(MenuSystem *menu) {
     if (!menu)
         return;

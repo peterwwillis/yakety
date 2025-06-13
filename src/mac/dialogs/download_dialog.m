@@ -5,8 +5,9 @@
 
 // Context for progress callbacks
 typedef struct {
-    NSProgressIndicator *progressBar;
-    NSTextField *statusLabel;
+    __strong NSProgressIndicator *progressBar;
+    __strong NSTextField *statusLabel;
+    volatile bool is_cancelled;
 } DownloadDialogContext;
 
 // Progress callback
@@ -14,8 +15,11 @@ static void download_progress_callback(float progress, void *userdata) {
     DownloadDialogContext *ctx = (DownloadDialogContext *) userdata;
 
     dispatch_async(dispatch_get_main_queue(), ^{
-      [ctx->progressBar setDoubleValue:progress];
-      [ctx->statusLabel setStringValue:[NSString stringWithFormat:@"%.0f%% complete", progress * 100]];
+      // Double-check on main thread in case of race condition
+      if (!ctx->is_cancelled) {
+          [ctx->progressBar setDoubleValue:progress];
+          [ctx->statusLabel setStringValue:[NSString stringWithFormat:@"%.0f%% complete", progress * 100]];
+      }
     });
 }
 
@@ -24,12 +28,18 @@ static void download_complete_callback(bool success, const char *error, void *us
     DownloadDialogContext *ctx = (DownloadDialogContext *) userdata;
 
     dispatch_async(dispatch_get_main_queue(), ^{
-      if (success) {
-          [ctx->statusLabel setStringValue:@"Download completed!"];
-      } else {
-          NSString *errorMsg = error ? [NSString stringWithUTF8String:error] : @"Unknown error";
-          [ctx->statusLabel setStringValue:[NSString stringWithFormat:@"Failed: %@", errorMsg]];
+      // Double-check on main thread in case of race condition
+      if (!ctx->is_cancelled) {
+          if (success) {
+              [ctx->statusLabel setStringValue:@"Download completed!"];
+          } else {
+              NSString *errorMsg = error ? [NSString stringWithUTF8String:error] : @"Unknown error";
+              [ctx->statusLabel setStringValue:[NSString stringWithFormat:@"Failed: %@", errorMsg]];
+          }
       }
+
+      // Always clean up the context - this callback is guaranteed to be called
+      free(ctx);
     });
 }
 
@@ -42,10 +52,18 @@ static void download_complete_callback(bool success, const char *error, void *us
 - (void)cancelDownloadClicked:(id)sender {
     NSValue *handleValue = objc_getAssociatedObject(sender, "downloadHandle");
     NSTextField *statusLabel = objc_getAssociatedObject(sender, "statusLabel");
+    NSValue *ctxValue = objc_getAssociatedObject(sender, "downloadContext");
 
     if (handleValue) {
         DownloadHandle *handle = (DownloadHandle *) [handleValue pointerValue];
         [statusLabel setStringValue:@"Cancelling..."];
+
+        // Mark context as cancelled to prevent callback crashes
+        if (ctxValue) {
+            DownloadDialogContext *ctx = (DownloadDialogContext *) [ctxValue pointerValue];
+            ctx->is_cancelled = true;
+        }
+
         http_download_cancel(handle);
     }
 }
@@ -110,6 +128,7 @@ int download_dialog_show(const char *model_name, const char *download_url, const
         DownloadDialogContext *ctx = malloc(sizeof(DownloadDialogContext));
         ctx->progressBar = progressBar;
         ctx->statusLabel = statusLabel;
+        ctx->is_cancelled = false;
 
         // Cancel button
         NSButton *cancelButton =
@@ -139,21 +158,22 @@ int download_dialog_show(const char *model_name, const char *download_url, const
             return 2; // Error starting download
         }
 
-        // Associate download handle with cancel button
+        // Associate download handle and context with cancel button
         objc_setAssociatedObject(cancelButton, "downloadHandle", [NSValue valueWithPointer:downloadHandle],
                                  OBJC_ASSOCIATION_RETAIN);
         objc_setAssociatedObject(cancelButton, "statusLabel", statusLabel, OBJC_ASSOCIATION_ASSIGN);
+        objc_setAssociatedObject(cancelButton, "downloadContext", [NSValue valueWithPointer:ctx],
+                                 OBJC_ASSOCIATION_RETAIN);
 
         // Let http_download_wait handle all the event pumping!
         int result = http_download_wait(downloadHandle);
 
-        // Cleanup
+        // Mark context as cancelled to prevent UI updates
+        ctx->is_cancelled = true;
+
+        // Cleanup - context will be freed by completion callback
         http_download_cleanup(downloadHandle);
         [progressWindow close];
-
-        // Free the heap-allocated context
-        free(ctx);
-
         return result;
     }
 }

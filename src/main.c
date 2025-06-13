@@ -12,6 +12,7 @@
 #include "keylogger.h"
 #include "logging.h"
 #include "menu.h"
+#include "models.h"
 #include "overlay.h"
 #include "preferences.h"
 #include "transcription.h"
@@ -21,7 +22,6 @@
 #include "dialog.h"
 
 // Constants
-#define RETRY_DELAY_MS 3000
 #define PERMISSION_RETRY_DELAY_MS 500
 #define MIN_RECORDING_DURATION 0.1
 
@@ -33,7 +33,6 @@ typedef struct {
 static AppState *g_state = NULL;
 
 // Forward declarations
-static void *load_model_async(void *arg);
 static void on_key_press(void *userdata);
 static void on_key_release(void *userdata);
 
@@ -42,107 +41,14 @@ static void signal_handler(int sig) {
     app_quit();
 }
 
-// Helper function to extract filename from path
-static const char *get_filename_from_path(const char *path) {
-    if (!path)
-        return "unknown";
-
-    const char *filename = strrchr(path, '/');
-    if (!filename)
-        filename = strrchr(path, '\\');
-    if (filename)
-        filename++;
-    else
-        filename = path;
-    return filename;
-}
-
-// Model loading with fallback logic
+// Model loading with unified system
 static bool load_model_with_fallback(void) {
-    log_info("Starting model loading at %.3f seconds", utils_now());
-
-    overlay_show("Loading model");
-
-    // Try to load the model (this blocks but keeps UI responsive)
-    void *result = app_execute_async_blocking(load_model_async, NULL);
-
-    if (!result) {
-        // First failure - try fallback to base model
-        const char *failed_model = preferences_get_string("model");
-        char fallback_msg[256];
-
-        if (failed_model && strlen(failed_model) > 0) {
-            const char *filename = get_filename_from_path(failed_model);
-            snprintf(fallback_msg, sizeof(fallback_msg), "Failed to load %s, falling back to base model", filename);
-        } else {
-            snprintf(fallback_msg, sizeof(fallback_msg), "Failed to load model, falling back to base model");
-        }
-
-        overlay_show_error(fallback_msg);
-
-        // Clear the model from preferences to use default search
-        preferences_set_string("model", "");
-        preferences_save();
-
-        // Wait, then try again with base model
-        app_sleep_responsive(RETRY_DELAY_MS);
-
-        overlay_show("Loading base model");
-        result = app_execute_async_blocking(load_model_async, NULL);
-
-        if (!result) {
-            // Final failure - show error and quit
-            const char *model_path = utils_get_model_path();
-            char error_msg[256];
-
-            if (model_path) {
-                const char *filename = get_filename_from_path(model_path);
-                snprintf(error_msg, sizeof(error_msg), "Failed to load %s", filename);
-            } else {
-                snprintf(error_msg, sizeof(error_msg), "Model not found");
-            }
-
-            overlay_show_error(error_msg);
-            app_sleep_responsive(RETRY_DELAY_MS);
-            overlay_hide();
-            app_quit();
-            return false;
-        }
-    }
-
-    // Model loaded successfully
-    log_info("Model loaded successfully at %.3f seconds", utils_now());
-    overlay_hide();
-    return true;
-}
-
-// Async model loading work function
-static void *load_model_async(void *arg) {
-    (void) arg; // No longer need config parameter
-
-    log_info("Loading Whisper model in background thread...");
-
-    const char *model_path = utils_get_model_path();
-    if (!model_path) {
-        log_error("Could not find Whisper model file");
-        return (void *) 0; // Return 0 for failure
-    }
-
-    if (transcription_init(model_path) != 0) {
-        log_error("Failed to initialize transcription");
-        return (void *) 0; // Return 0 for failure
-    }
-
-    // Set language from preferences
-    const char *language = preferences_get_string("language");
-    if (language) {
-        transcription_set_language(language);
+    if (models_load() == 0) {
+        return true; // Success
     } else {
-        transcription_set_language("en"); // Default to English
+        app_quit(); // models_load handles all error display
+        return false;
     }
-
-    log_info("Model loaded successfully");
-    return (void *) 1; // Return 1 for success
 }
 
 // Setup menu system for tray apps

@@ -336,11 +336,26 @@ utils_mutex_t* utils_mutex_create(void) {
     utils_mutex_t* m = malloc(sizeof(utils_mutex_t));
     if (!m) return NULL;
     
-    if (pthread_mutex_init(&m->mutex, NULL) != 0) {
+    // Create recursive mutex attributes
+    pthread_mutexattr_t attr;
+    if (pthread_mutexattr_init(&attr) != 0) {
         free(m);
         return NULL;
     }
     
+    if (pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE) != 0) {
+        pthread_mutexattr_destroy(&attr);
+        free(m);
+        return NULL;
+    }
+    
+    if (pthread_mutex_init(&m->mutex, &attr) != 0) {
+        pthread_mutexattr_destroy(&attr);
+        free(m);
+        return NULL;
+    }
+    
+    pthread_mutexattr_destroy(&attr);
     return m;
 }
 

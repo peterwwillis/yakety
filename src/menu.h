@@ -32,6 +32,9 @@ void menu_hide(void);
 // Update a menu item's title by index
 void menu_update_item(int index, const char *new_title);
 
+// Enable/disable the entire menu
+void menu_set_enabled(bool enabled);
+
 // Internal functions (for platform implementations)
 MenuSystem *menu_create(void);
 int menu_add_item(MenuSystem *menu, const char *title, MenuCallback callback);

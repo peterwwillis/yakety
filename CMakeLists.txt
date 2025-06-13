@@ -89,6 +89,7 @@ set(BUSINESS_SOURCES
     src/audio.c
     src/transcription.cpp
     src/menu.c
+    src/models.c
 )
 
 # Create yakety CLI executable

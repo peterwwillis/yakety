@@ -298,6 +298,20 @@ void menu_update_item(int index, const char *new_title) {
     }
 }
 
+void menu_set_enabled(bool enabled) {
+    if (!g_menu_showing || !g_tray_menu) {
+        return;
+    }
+    
+    UINT flag = enabled ? MF_ENABLED : MF_GRAYED;
+    
+    for (int i = 0; i < g_menu->item_count; i++) {
+        if (!g_menu->items[i].is_separator) {
+            EnableMenuItem(g_tray_menu, ID_TRAY_BASE + i, MF_BYCOMMAND | flag);
+        }
+    }
+}
+
 void menu_destroy(MenuSystem *menu) {
     if (!menu)
         return;

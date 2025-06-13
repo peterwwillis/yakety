@@ -2,12 +2,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "app.h"
 #include "dialog.h"
 #include "keylogger.h"
 #include "logging.h"
 #include "menu.h"
+#include "models.h"
 #include "overlay.h"
 #include "preferences.h"
 #include "transcription.h"
@@ -15,16 +17,6 @@
 
 // Global variables for menu management
 int g_launch_menu_index = -1;
-
-// Global flag to track if model is being reloaded - use atomic access
-static bool g_model_reloading = false;
-
-// Helper function to show error dialog on main thread
-static void show_error_dialog(void *message) {
-    const char *error_msg = (const char *) message;
-    overlay_hide(); // Hide overlay before showing error
-    dialog_error("Model Error", error_msg);
-}
 
 // Menu callback functions
 static void menu_about(void) {
@@ -48,203 +40,74 @@ static void menu_licenses(void) {
                             "See LICENSES.md for full details.");
 }
 
-// Async model reload function - RUNS ON BACKGROUND THREAD
-static void *reload_model_async(void *arg) {
-    (void) arg;
-    
-    log_info("reload_model_async() ENTRY - thread=%p", utils_thread_id());
-
-    // Pause keylogger to prevent recording during model reload
-    log_info("About to pause keylogger - thread=%p", utils_thread_id());
-    keylogger_pause();
-    log_info("Keylogger paused - thread=%p", utils_thread_id());
-
-    // Cleanup current model
-    log_info("About to cleanup transcription - thread=%p", utils_thread_id());
-    transcription_cleanup();
-    log_info("Transcription cleanup complete - thread=%p", utils_thread_id());
-
-    // Load new model
-    log_info("About to get model path - thread=%p", utils_thread_id());
-    const char *model_path = utils_get_model_path();
-    if (!model_path) {
-        log_info("No model path found - thread=%p", utils_thread_id());
-        // Schedule error dialog on main thread
-        utils_execute_main_thread(0, show_error_dialog, (void *) "Could not find the specified model file.");
-        keylogger_resume(); // Resume keylogger on error
-        return (void *) 0;
-    }
-    log_info("Got model path: %s - thread=%p", model_path, utils_thread_id());
-
-    log_info("About to init transcription - thread=%p", utils_thread_id());
-    if (transcription_init(model_path) != 0) {
-        log_info("Transcription init failed - thread=%p", utils_thread_id());
-        // Check if it's a corrupted downloaded file and delete it
-        const char *current_model = preferences_get_string("model");
-        if (current_model && strlen(current_model) > 0) {
-            // This is a user model that failed to load - likely corrupted
-            remove(current_model); // Delete the corrupted file
-
-            // Clear the model preference to fall back to bundled model
-            preferences_set_string("model", "");
-            preferences_save();
-
-            // Schedule error dialog on main thread
-            utils_execute_main_thread(
-                0, show_error_dialog,
-                (void *) "Downloaded model was corrupted and has been removed. Using bundled model.");
-        } else {
-            // Schedule error dialog on main thread
-            utils_execute_main_thread(0, show_error_dialog, (void *) "Failed to initialize the model.");
-        }
-
-        keylogger_resume(); // Resume keylogger on error
-        return (void *) 0;
-    }
-    log_info("Transcription init success - thread=%p", utils_thread_id());
-
-    // Set language from preferences
-    const char *language = preferences_get_string("language");
-    if (language) {
-        log_info("Setting language to %s - thread=%p", language, utils_thread_id());
-        transcription_set_language(language);
-    } else {
-        log_info("Setting default language to en - thread=%p", utils_thread_id());
-        transcription_set_language("en"); // Default to English
-    }
-
-    // Resume keylogger after successful reload
-    log_info("About to resume keylogger - thread=%p", utils_thread_id());
-    keylogger_resume();
-    log_info("reload_model_async() SUCCESS EXIT - thread=%p", utils_thread_id());
-
-    return (void *) 1;
-}
-
-// Reload model and language settings - RUNS ON MAIN THREAD
-static void reload_model_and_language(void) {
-    log_info("reload_model_and_language() ENTRY - main thread=%p", utils_thread_id());
-    
-    if (utils_atomic_read_bool(&g_model_reloading)) {
-        log_info("Already reloading, exiting - main thread=%p", utils_thread_id());
-        return; // Already reloading, exit silently
-    }
-
-    log_info("Setting g_model_reloading=true - main thread=%p", utils_thread_id());
-    utils_atomic_write_bool(&g_model_reloading, true);
-
-    // Show loading overlay on main thread
-    log_info("Showing overlay - main thread=%p", utils_thread_id());
-    overlay_show("Loading model");
-
-    // Start reload using cross-platform async execution
-    log_info("About to call app_execute_async_blocking - main thread=%p", utils_thread_id());
-    void *result = app_execute_async_blocking(reload_model_async, NULL);
-    log_info("app_execute_async_blocking returned %p - main thread=%p", result, utils_thread_id());
-
-    // Hide overlay on main thread
-    log_info("Hiding overlay - main thread=%p", utils_thread_id());
-    overlay_hide();
-
-    // Always reset the flag on the main thread
-    log_info("Setting g_model_reloading=false - main thread=%p", utils_thread_id());
-    utils_atomic_write_bool(&g_model_reloading, false);
-
-    if (!result) {
-        log_info("Showing error dialog - main thread=%p", utils_thread_id());
-        // Show error on failure
-        dialog_error("Model Reload Error", "Failed to reload model.");
-    }
-    
-    log_info("reload_model_and_language() EXIT - main thread=%p", utils_thread_id());
-}
-
 static void menu_models(void) {
-    if (utils_atomic_read_bool(&g_model_reloading)) {
-        dialog_info("Model Loading", "Model is currently being reloaded. Please wait before making changes.");
+    // Variables for model selection
+    char selected_model[1024] = {0};
+    char selected_language[64] = {0};
+    char download_url[1024] = {0};
+
+    // Show models dialog
+    if (!dialog_models_and_language("Models & Language Settings", selected_model, sizeof(selected_model),
+                                    selected_language, sizeof(selected_language), download_url, sizeof(download_url))) {
+        // User cancelled
         return;
     }
 
-    // Variables for model selection
-    char selected_model[1024];
-    char selected_language[64];
-    char download_url[1024];
+    // Handle download if needed
+    if (strlen(download_url) > 0) {
+        // Extract model name for display
+        const char *model_name = strrchr(selected_model, '/');
+        model_name = model_name ? model_name + 1 : "Model";
 
-    // Loop until user cancels or successfully selects a model
-    while (true) {
-        // Clear buffers
-        memset(selected_model, 0, sizeof(selected_model));
-        memset(selected_language, 0, sizeof(selected_language));
-        memset(download_url, 0, sizeof(download_url));
+        char display_name[256];
+        strncpy(display_name, model_name, sizeof(display_name) - 1);
+        display_name[sizeof(display_name) - 1] = '\0';
 
-        if (!dialog_models_and_language("Models & Language Settings", selected_model, sizeof(selected_model),
-                                        selected_language, sizeof(selected_language), download_url,
-                                        sizeof(download_url))) {
-            // User cancelled
-            return;
-        }
+        // Remove file extension
+        char *dot = strrchr(display_name, '.');
+        if (dot)
+            *dot = '\0';
 
-        // Check if model needs to be downloaded
-        if (strlen(download_url) > 0) {
-            // Extract model name from selected_model path
-            const char *model_name = strrchr(selected_model, '/');
-            if (model_name) {
-                model_name++; // Skip the '/'
-            } else {
-                model_name = "Model"; // Default name if path parsing fails
-            }
+        // Disable menu and download
+        menu_set_enabled(false);
+        int download_result = dialog_model_download(display_name, download_url, selected_model);
+        menu_set_enabled(true);
 
-            // Remove file extension if present
-            char display_name[256];
-            strncpy(display_name, model_name, sizeof(display_name) - 1);
-            display_name[sizeof(display_name) - 1] = '\0';
-
-            char *dot = strrchr(display_name, '.');
-            if (dot) {
-                *dot = '\0'; // Remove extension
-            }
-
-            // Show download dialog
-            int download_result = dialog_model_download(display_name, download_url, selected_model);
-
-            if (download_result == 0) {
-                // Download succeeded - proceed with loading the model (break out of dialog loop)
-                // selected_model already contains the downloaded model path
-                break;
-            } else {
-                // Download cancelled or failed - go back to models dialog
-                continue;
-            }
-        } else {
-            // Regular model selection without download
-            break;
+        if (download_result != 0) {
+            return; // Download cancelled or failed
         }
     }
 
-
-    // Get current settings to check for changes
+    // Check if anything actually changed
     const char *current_model = preferences_get_string("model");
     const char *current_language = preferences_get_string("language");
 
-
-    // Check if settings actually changed
     bool model_changed = (current_model == NULL && strlen(selected_model) > 0) ||
                          (current_model != NULL && strcmp(current_model, selected_model) != 0);
     bool language_changed = (current_language == NULL && strcmp(selected_language, "en") != 0) ||
                             (current_language != NULL && strcmp(current_language, selected_language) != 0);
 
-
     if (!model_changed && !language_changed) {
-        return; // No changes, exit silently
+        return; // No changes
     }
 
-    // Update preferences with new settings
+    // Update preferences
     preferences_set_string("model", selected_model);
     preferences_set_string("language", selected_language);
     preferences_save();
 
-    // Reload transcription system with new model and language
-    reload_model_and_language();
+    // Pause keylogger during reload
+    keylogger_pause();
+
+    // Load the model using THE ONE function
+    int result = models_load();
+
+    // Resume keylogger
+    keylogger_resume();
+
+    if (result != 0) {
+        log_error("Failed to load model after settings change");
+    }
 }
 
 static void menu_configure_hotkey(void) {
