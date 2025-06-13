@@ -45,31 +45,22 @@ void utils_sleep_ms(int milliseconds) {
 const char *utils_get_model_path(void) {
     static char model_path[MAX_PATH] = {0};
 
-    log_info("🔍 Searching for Whisper model...\n");
-
     // Check if we have a model path from preferences
     const char *config_model = preferences_get_string("model");
     if (config_model && strlen(config_model) > 0) {
-        log_info("  Checking preferences model: %s\n", config_model);
         if (GetFileAttributesA(config_model) != INVALID_FILE_ATTRIBUTES) {
-            log_info("  ✅ Found model from preferences\n");
             strncpy_s(model_path, MAX_PATH, config_model, _TRUNCATE);
             return model_path;
-        } else {
-            log_info("  ❌ Preferences model not found or not accessible\n");
         }
     }
 
     // Check current directory first
-    log_info("  Checking current directory: ggml-base-q8_0.bin\n");
     if (GetFileAttributesA("ggml-base-q8_0.bin") != INVALID_FILE_ATTRIBUTES) {
-        log_info("  ✅ Found in current directory\n");
         return "ggml-base-q8_0.bin";
     }
 
     // Get the executable directory
     if (GetModuleFileNameA(NULL, model_path, MAX_PATH) == 0) {
-        log_error("  ❌ Failed to get executable path\n");
         return NULL;
     }
 
@@ -79,32 +70,25 @@ const char *utils_get_model_path(void) {
         *last_slash = '\0';
     }
 
-    log_info("  Executable directory: %s\n", model_path);
-
     // Check models subdirectory in executable directory
     char test_path[MAX_PATH];
     snprintf(test_path, MAX_PATH, "%s\\models\\ggml-base-q8_0.bin", model_path);
-    log_info("  Checking: %s\n", test_path);
 
     if (GetFileAttributesA(test_path) != INVALID_FILE_ATTRIBUTES) {
-        log_info("  ✅ Found in executable directory\\models\n");
         strcpy(model_path, test_path); // Return full path with filename
         return model_path;
     }
 
     // Check directly in executable directory
     snprintf(test_path, MAX_PATH, "%s\\ggml-base-q8_0.bin", model_path);
-    log_info("  Checking: %s\n", test_path);
 
     if (GetFileAttributesA(test_path) != INVALID_FILE_ATTRIBUTES) {
-        log_info("  ✅ Found in executable directory\n");
         strcpy(model_path, test_path); // Return full path with filename
         return model_path;
     }
 
     // Try parent directory (for development builds)
     snprintf(test_path, MAX_PATH, "%s\\..\\ggml-base-q8_0.bin", model_path);
-    log_info("  Checking: %s\n", test_path);
 
     if (GetFileAttributesA(test_path) != INVALID_FILE_ATTRIBUTES) {
         // Normalize the path
@@ -115,7 +99,6 @@ const char *utils_get_model_path(void) {
             if (last_slash) {
                 *last_slash = '\0';
             }
-            log_info("  ✅ Found in parent directory: %s\n", full_path);
             strcpy(model_path, full_path);
             return model_path;
         }
@@ -123,22 +106,17 @@ const char *utils_get_model_path(void) {
 
     // Try whisper.cpp subdirectory
     snprintf(test_path, MAX_PATH, "%s\\whisper.cpp\\models\\ggml-base-q8_0.bin", model_path);
-    log_info("  Checking: %s\n", test_path);
 
     if (GetFileAttributesA(test_path) != INVALID_FILE_ATTRIBUTES) {
-        log_info("  ✅ Found in whisper.cpp\\models\n");
         strcpy(model_path, test_path); // Return full path with filename
         return model_path;
     }
 
     // Check whisper.cpp/models relative to current directory
-    log_info("  Checking: whisper.cpp\\models\\ggml-base-q8_0.bin\n");
     if (GetFileAttributesA("whisper.cpp\\models\\ggml-base-q8_0.bin") != INVALID_FILE_ATTRIBUTES) {
-        log_info("  ✅ Found in whisper.cpp\\models\n");
         return "whisper.cpp\\models\\ggml-base-q8_0.bin";
     }
 
-    log_error("  ❌ Model not found in any location!\n");
     return NULL;
 }
 
