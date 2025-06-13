@@ -7,11 +7,23 @@
 #include "dialog.h"
 #include "keylogger.h"
 #include "menu.h"
+#include "overlay.h"
 #include "preferences.h"
+#include "transcription.h"
 #include "utils.h"
 
 // Global variables for menu management
 int g_launch_menu_index = -1;
+
+// Global flag to track if model is being reloaded
+static bool g_model_reloading = false;
+
+// Helper function to show error dialog on main thread
+static void show_error_dialog(void *message) {
+    const char *error_msg = (const char *) message;
+    overlay_hide(); // Hide overlay before showing error
+    dialog_error("Model Error", error_msg);
+}
 
 // Menu callback functions
 static void menu_about(void) {
@@ -33,6 +45,179 @@ static void menu_licenses(void) {
                             "- Whisper base.en model by OpenAI (MIT License)\n"
                             "- miniaudio by David Reid (Public Domain)\n\n"
                             "See LICENSES.md for full details.");
+}
+
+// Async model reload function
+static void *reload_model_async(void *arg) {
+    (void) arg;
+
+    // Pause keylogger to prevent recording during model reload
+    keylogger_pause();
+
+    // Cleanup current model
+    transcription_cleanup();
+
+    // Load new model
+    const char *model_path = utils_get_model_path();
+    if (!model_path) {
+        // Schedule error dialog on main thread
+        utils_execute_main_thread(0, show_error_dialog, (void *) "Could not find the specified model file.");
+        keylogger_resume(); // Resume keylogger on error
+        g_model_reloading = false;
+        return (void *) 0;
+    }
+
+    if (transcription_init(model_path) != 0) {
+        // Check if it's a corrupted downloaded file and delete it
+        const char *current_model = preferences_get_string("model");
+        if (current_model && strlen(current_model) > 0) {
+            // This is a user model that failed to load - likely corrupted
+            remove(current_model); // Delete the corrupted file
+
+            // Clear the model preference to fall back to bundled model
+            preferences_set_string("model", "");
+            preferences_save();
+
+            // Schedule error dialog on main thread
+            utils_execute_main_thread(
+                0, show_error_dialog,
+                (void *) "Downloaded model was corrupted and has been removed. Using bundled model.");
+        } else {
+            // Schedule error dialog on main thread
+            utils_execute_main_thread(0, show_error_dialog, (void *) "Failed to initialize the model.");
+        }
+
+        keylogger_resume(); // Resume keylogger on error
+        g_model_reloading = false;
+        return (void *) 0;
+    }
+
+    // Set language from preferences
+    const char *language = preferences_get_string("language");
+    if (language) {
+        transcription_set_language(language);
+    } else {
+        transcription_set_language("en"); // Default to English
+    }
+
+    // Resume keylogger after successful reload
+    keylogger_resume();
+
+    g_model_reloading = false;
+    return (void *) 1;
+}
+
+// Reload model and language settings
+static void reload_model_and_language(void) {
+    if (g_model_reloading) {
+        return; // Already reloading, exit silently
+    }
+
+    g_model_reloading = true;
+
+    // Show loading overlay on main thread
+    overlay_show("Loading model");
+
+    // Start reload using cross-platform async execution
+    void *result = app_execute_async_blocking(reload_model_async, NULL);
+
+    // Hide overlay on main thread
+    overlay_hide();
+
+    if (!result) {
+        // Only show error on failure
+        dialog_error("Model Reload Error", "Failed to reload model.");
+        g_model_reloading = false;
+    }
+    // Success case is handled in reload_model_async
+}
+
+static void menu_models(void) {
+    if (g_model_reloading) {
+        dialog_info("Model Loading", "Model is currently being reloaded. Please wait before making changes.");
+        return;
+    }
+
+    // Variables for model selection
+    char selected_model[1024];
+    char selected_language[64];
+    char download_url[1024];
+
+    // Loop until user cancels or successfully selects a model
+    while (true) {
+        // Clear buffers
+        memset(selected_model, 0, sizeof(selected_model));
+        memset(selected_language, 0, sizeof(selected_language));
+        memset(download_url, 0, sizeof(download_url));
+
+        if (!dialog_models_and_language("Models & Language Settings", selected_model, sizeof(selected_model),
+                                        selected_language, sizeof(selected_language), download_url,
+                                        sizeof(download_url))) {
+            // User cancelled
+            return;
+        }
+
+        // Check if model needs to be downloaded
+        if (strlen(download_url) > 0) {
+            // Extract model name from selected_model path
+            const char *model_name = strrchr(selected_model, '/');
+            if (model_name) {
+                model_name++; // Skip the '/'
+            } else {
+                model_name = "Model"; // Default name if path parsing fails
+            }
+
+            // Remove file extension if present
+            char display_name[256];
+            strncpy(display_name, model_name, sizeof(display_name) - 1);
+            display_name[sizeof(display_name) - 1] = '\0';
+
+            char *dot = strrchr(display_name, '.');
+            if (dot) {
+                *dot = '\0'; // Remove extension
+            }
+
+            // Show download dialog
+            int download_result = dialog_model_download(display_name, download_url, selected_model);
+
+            if (download_result == 0) {
+                // Download succeeded - proceed with loading the model (break out of dialog loop)
+                // selected_model already contains the downloaded model path
+                break;
+            } else {
+                // Download cancelled or failed - go back to models dialog
+                continue;
+            }
+        } else {
+            // Regular model selection without download
+            break;
+        }
+    }
+
+
+    // Get current settings to check for changes
+    const char *current_model = preferences_get_string("model");
+    const char *current_language = preferences_get_string("language");
+
+
+    // Check if settings actually changed
+    bool model_changed = (current_model == NULL && strlen(selected_model) > 0) ||
+                         (current_model != NULL && strcmp(current_model, selected_model) != 0);
+    bool language_changed = (current_language == NULL && strcmp(selected_language, "en") != 0) ||
+                            (current_language != NULL && strcmp(current_language, selected_language) != 0);
+
+
+    if (!model_changed && !language_changed) {
+        return; // No changes, exit silently
+    }
+
+    // Update preferences with new settings
+    preferences_set_string("model", selected_model);
+    preferences_set_string("language", selected_language);
+    preferences_save();
+
+    // Reload transcription system with new model and language
+    reload_model_and_language();
 }
 
 static void menu_configure_hotkey(void) {
@@ -99,6 +284,7 @@ int menu_setup_items(MenuSystem *menu) {
     menu_add_item(menu, "About Yakety", menu_about);
     menu_add_item(menu, "Licenses", menu_licenses);
     menu_add_separator(menu);
+    menu_add_item(menu, "Models & Languages", menu_models);
     menu_add_item(menu, "Configure Hotkey", menu_configure_hotkey);
     menu_add_separator(menu);
 

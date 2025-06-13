@@ -97,11 +97,11 @@ endfunction()
 # Download whisper model
 function(download_whisper_model)
     set(MODEL_DIR "${CMAKE_SOURCE_DIR}/whisper.cpp/models")
-    set(MODEL_FILE "${MODEL_DIR}/ggml-base.en.bin")
-    set(MODEL_URL "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin")
+    set(MODEL_FILE "${MODEL_DIR}/ggml-base-q8_0.bin")
+    set(MODEL_URL "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q8_0.bin")
     
     if(NOT EXISTS ${MODEL_FILE})
-        message(STATUS "Downloading whisper base.en model (~150MB)...")
+        message(STATUS "Downloading whisper base-q8_0 model (multilingual, ~110MB)...")
         file(MAKE_DIRECTORY ${MODEL_DIR})
         
         file(DOWNLOAD

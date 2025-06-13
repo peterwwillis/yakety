@@ -72,12 +72,6 @@ int transcription_init(const char *model_path) {
 			 cparams.flash_attn ? "enabled" : "disabled",
 			 cparams.use_gpu ? "enabled" : "disabled");
 
-	// Log actual whisper context state
-	if (ctx) {
-		// Note: whisper.cpp doesn't expose a way to get actual params, so we'll trust the model load output
-		log_info("📊 Check model load output above for actual flash_attn status\n");
-	}
-
 	return 0;
 }
 

@@ -546,3 +546,20 @@ bool dialog_confirm(const char *title, const char *message) {
 }
 
 // Implemented in dialog_keycapture.c
+
+// TODO: Implement full models dialog for Windows
+// For now, provide a basic implementation to satisfy the interface
+bool dialog_models(const char *title, char *selected_model, size_t model_buffer_size, 
+                   char *selected_language, size_t language_buffer_size) {
+    // Show a simple info dialog for now
+    show_custom_dialog(title, "Models dialog not yet implemented on Windows.\nUsing default settings.", MB_OK | MB_ICONINFORMATION);
+    
+    // Return default values
+    strncpy(selected_model, "", model_buffer_size - 1);
+    selected_model[model_buffer_size - 1] = '\0';
+    
+    strncpy(selected_language, "en", language_buffer_size - 1);
+    selected_language[language_buffer_size - 1] = '\0';
+    
+    return true; // Return true to indicate defaults were set
+}

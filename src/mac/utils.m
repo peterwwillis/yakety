@@ -51,10 +51,10 @@ const char *utils_get_model_path(void) {
 
     @autoreleasepool {
         // First check current directory
-        log_info("  Checking current directory: ggml-base.en.bin\n");
-        if (access("ggml-base.en.bin", F_OK) == 0) {
+        log_info("  Checking current directory: ggml-base-q8_0.bin\n");
+        if (access("ggml-base-q8_0.bin", F_OK) == 0) {
             log_info("  ✅ Found in current directory\n");
-            return "ggml-base.en.bin";
+            return "ggml-base-q8_0.bin";
         }
 
         // Check in app bundle Resources
@@ -62,16 +62,16 @@ const char *utils_get_model_path(void) {
         NSString *bundlePath = [bundle bundlePath];
         log_info("  Bundle path: %s\n", [bundlePath UTF8String]);
 
-        // Check Resources/models/ggml-base.en.bin (where CMake puts it)
-        NSString *resourceModelPath = [bundle pathForResource:@"models/ggml-base.en" ofType:@"bin"];
+        // Check Resources/models/ggml-base-q8_0.bin (where CMake puts it)
+        NSString *resourceModelPath = [bundle pathForResource:@"models/ggml-base-q8_0" ofType:@"bin"];
         if (resourceModelPath) {
             log_info("  ✅ Found in bundle Resources/models: %s\n", [resourceModelPath UTF8String]);
             strncpy(model_path, [resourceModelPath UTF8String], PATH_MAX - 1);
             return model_path;
         }
 
-        // Check Resources/ggml-base.en.bin
-        NSString *resourcePath = [bundle pathForResource:@"ggml-base.en" ofType:@"bin"];
+        // Check Resources/ggml-base-q8_0.bin
+        NSString *resourcePath = [bundle pathForResource:@"ggml-base-q8_0" ofType:@"bin"];
         if (resourcePath) {
             log_info("  ✅ Found in bundle Resources: %s\n", [resourcePath UTF8String]);
             strncpy(model_path, [resourcePath UTF8String], PATH_MAX - 1);
@@ -85,7 +85,7 @@ const char *utils_get_model_path(void) {
 
         // Check models subdirectory in executable directory
         NSString *modelsDir = [execDir stringByAppendingPathComponent:@"models"];
-        NSString *modelInModelsDir = [modelsDir stringByAppendingPathComponent:@"ggml-base.en.bin"];
+        NSString *modelInModelsDir = [modelsDir stringByAppendingPathComponent:@"ggml-base-q8_0.bin"];
         log_info("  Checking: %s\n", [modelInModelsDir UTF8String]);
         if ([[NSFileManager defaultManager] fileExistsAtPath:modelInModelsDir]) {
             log_info("  ✅ Found in executable directory/models\n");
@@ -94,7 +94,7 @@ const char *utils_get_model_path(void) {
         }
 
         // Check directly in executable directory
-        NSString *modelInExecDir = [execDir stringByAppendingPathComponent:@"ggml-base.en.bin"];
+        NSString *modelInExecDir = [execDir stringByAppendingPathComponent:@"ggml-base-q8_0.bin"];
         log_info("  Checking: %s\n", [modelInExecDir UTF8String]);
         if ([[NSFileManager defaultManager] fileExistsAtPath:modelInExecDir]) {
             log_info("  ✅ Found in executable directory\n");
@@ -104,7 +104,7 @@ const char *utils_get_model_path(void) {
 
         // Check in build directory (parent of executable directory)
         NSString *buildPath =
-            [[execDir stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"ggml-base.en.bin"];
+            [[execDir stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"ggml-base-q8_0.bin"];
         log_info("  Checking: %s\n", [buildPath UTF8String]);
         if ([[NSFileManager defaultManager] fileExistsAtPath:buildPath]) {
             log_info("  ✅ Found in build directory\n");
@@ -113,7 +113,7 @@ const char *utils_get_model_path(void) {
         }
 
         // Check whisper.cpp/models directory relative to current directory
-        NSString *whisperModelsPath = @"whisper.cpp/models/ggml-base.en.bin";
+        NSString *whisperModelsPath = @"whisper.cpp/models/ggml-base-q8_0.bin";
         log_info("  Checking: %s\n", [whisperModelsPath UTF8String]);
         if ([[NSFileManager defaultManager] fileExistsAtPath:whisperModelsPath]) {
             log_info("  ✅ Found in whisper.cpp/models\n");
@@ -124,7 +124,7 @@ const char *utils_get_model_path(void) {
         // Check relative to executable's parent parent (for build/bin structure)
         NSString *projectRoot = [[execDir stringByDeletingLastPathComponent] stringByDeletingLastPathComponent];
         NSString *whisperModelsFromRoot =
-            [projectRoot stringByAppendingPathComponent:@"whisper.cpp/models/ggml-base.en.bin"];
+            [projectRoot stringByAppendingPathComponent:@"whisper.cpp/models/ggml-base-q8_0.bin"];
         log_info("  Checking: %s\n", [whisperModelsFromRoot UTF8String]);
         if ([[NSFileManager defaultManager] fileExistsAtPath:whisperModelsFromRoot]) {
             log_info("  ✅ Found relative to project root\n");

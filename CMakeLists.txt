@@ -49,11 +49,16 @@ if(APPLE)
         src/mac/clipboard.m
         src/mac/overlay.m
         src/mac/dialog.m
+        src/mac/dialogs/dialog_common.m
+        src/mac/dialogs/models_dialog.m
+        src/mac/dialogs/hotkey_dialog.m
+        src/mac/dialogs/download_dialog.m
         src/mac/menu.m
         src/mac/keylogger.c
         src/mac/app.m
         src/mac/utils.m
         src/mac/dispatch.m
+        src/mac/http.m
         src/preferences.c
     )
     target_link_libraries(platform PUBLIC ${PLATFORM_FRAMEWORKS})
@@ -135,7 +140,7 @@ elseif(APPLE)
     set(ICON_FILE "${CMAKE_CURRENT_SOURCE_DIR}/assets/yakety.icns")
     set(MENUBAR_ICON "${CMAKE_CURRENT_SOURCE_DIR}/assets/generated/menubar.png")
     set(MENUBAR_ICON_2X "${CMAKE_CURRENT_SOURCE_DIR}/assets/generated/menubar@2x.png")
-    set(WHISPER_MODEL "${CMAKE_CURRENT_SOURCE_DIR}/whisper.cpp/models/ggml-base.en.bin")
+    set(WHISPER_MODEL "${CMAKE_CURRENT_SOURCE_DIR}/whisper.cpp/models/ggml-base-q8_0.bin")
 
     if(EXISTS ${ICON_FILE})
         set_source_files_properties(${ICON_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
@@ -251,11 +256,11 @@ set_target_properties(yakety-cli yakety-app recorder transcribe PROPERTIES
 )
 
 # Copy whisper model to output directory for CLI tools
-set(MODEL_FILE "${WHISPER_DIR}/models/ggml-base.en.bin")
+set(MODEL_FILE "${WHISPER_DIR}/models/ggml-base-q8_0.bin")
 if(EXISTS ${MODEL_FILE})
     add_custom_command(TARGET yakety-cli POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:yakety-cli>/models"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${MODEL_FILE}" "$<TARGET_FILE_DIR:yakety-cli>/models/ggml-base.en.bin"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${MODEL_FILE}" "$<TARGET_FILE_DIR:yakety-cli>/models/ggml-base-q8_0.bin"
         COMMENT "Copying Whisper model to output directory"
     )
 endif()
@@ -469,6 +474,18 @@ else()
         COMMAND ${CMAKE_COMMAND} -E echo "✅ Uploaded distribution packages to server"
         COMMENT "Uploading distribution packages to server using rsync..."
         VERBATIM
+    )
+endif()
+
+# Test programs
+if(APPLE)
+    add_executable(test-model-dialog src/tests/test_model_dialog.c)
+    target_link_libraries(test-model-dialog platform)
+    target_link_libraries(test-model-dialog "-framework Cocoa")
+    set_target_properties(test-model-dialog PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin
     )
 endif()
 
