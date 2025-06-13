@@ -53,16 +53,21 @@ I can run Windows commands using: ssh badlogic@192.168.1.21 "cmd.exe /c command"
 
 ### 2. Sync Changes to Windows
 ```bash
-# Sync source files only (excludes build artifacts)
-rsync -av --exclude='build/' --exclude='whisper.cpp/' \
-  src/ cmake/ CMakeLists.txt CMakePresets.json assets/ \
-  badlogic@192.168.1.21:/mnt/c/workspaces/yakety/
+# Sync source files only (excludes build artifacts, git, and unnecessary files)
+rsync -av --exclude='build/' --exclude='build-debug/' --exclude='whisper.cpp/' --exclude='website/' --exclude='.git/' --exclude='.vscode/' --exclude='.claude/' . badlogic@192.168.1.21:/mnt/c/workspaces/yakety/
 ```
 
 ### 3. Build on Windows
 ```bash
-# Build via SSH
-ssh badlogic@192.168.1.21 "cd /mnt/c/workspaces/yakety && cmd.exe /c 'c:\workspaces\winvs.bat' cmake --build --preset release"
+# Configure and build via SSH
+ssh badlogic@192.168.1.21 "cd /mnt/c/workspaces/yakety && /mnt/c/Windows/System32/cmd.exe /c 'cd c:\\workspaces\\yakety && c:\\workspaces\\winvs.bat && cmake --preset release'"
+
+# Build after configure
+ssh badlogic@192.168.1.21 "cd /mnt/c/workspaces/yakety && /mnt/c/Windows/System32/cmd.exe /c 'cd c:\\workspaces\\yakety && c:\\workspaces\\winvs.bat && cmake --build --preset release'"
+
+# Or sync and build in one command
+rsync -av --exclude='build/' --exclude='build-debug/' --exclude='whisper.cpp/' --exclude='website/' --exclude='.git/' --exclude='.vscode/' --exclude='.claude/' . badlogic@192.168.1.21:/mnt/c/workspaces/yakety/ && \
+ssh badlogic@192.168.1.21 "cd /mnt/c/workspaces/yakety && /mnt/c/Windows/System32/cmd.exe /c 'cd c:\\workspaces\\yakety && c:\\workspaces\\winvs.bat && cmake --build --preset release'"
 ```
 
 ### 4. Test and Debug
@@ -81,6 +86,12 @@ Claude Code can execute all these operations automatically. Example prompts:
 ### Basic Development
 ```
 "Please sync my local changes to Windows and build the release version."
+```
+
+Note: Use the batch command for sync and build:
+```bash
+rsync -av --exclude='build/' --exclude='build-debug/' --exclude='whisper.cpp/' --exclude='website/' --exclude='.git/' --exclude='.vscode/' --exclude='.claude/' . badlogic@192.168.1.21:/mnt/c/workspaces/yakety/ && \
+ssh badlogic@192.168.1.21 "cd /mnt/c/workspaces/yakety && /mnt/c/Windows/System32/cmd.exe /c 'cd c:\\workspaces\\yakety && c:\\workspaces\\winvs.bat && cmake --build --preset release'"
 ```
 
 ### Cross-Platform Testing

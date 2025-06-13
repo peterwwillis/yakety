@@ -68,4 +68,5 @@ echo === Setup Complete! ===
 echo To connect from a remote machine:
 echo ssh username@[windows-ip-address]
 echo.
-pause
+
+wsl
