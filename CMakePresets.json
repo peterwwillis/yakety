@@ -14,18 +14,20 @@
       "generator": "Ninja",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_Swift_COMPILER": "/usr/bin/swiftc"
       }
     },
     {
-      "name": "debug",
+      "name": "debug", 
       "displayName": "Debug",
       "description": "Debug build with Ninja",
       "binaryDir": "${sourceDir}/build-debug",
       "generator": "Ninja",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_Swift_COMPILER": "/usr/bin/swiftc"
       }
     },
     {

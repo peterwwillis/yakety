@@ -80,6 +80,7 @@ int app_init(const char *name, const char *version, bool is_console, AppReadyCal
         [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 
         g_app_delegate = [[AppDelegate alloc] init];
+        [g_app_delegate retain];
         [NSApp setDelegate:g_app_delegate];
     }
 
@@ -87,7 +88,10 @@ int app_init(const char *name, const char *version, bool is_console, AppReadyCal
 }
 
 void app_cleanup(void) {
-    g_app_delegate = nil;
+    if (g_app_delegate) {
+        [g_app_delegate release];
+        g_app_delegate = nil;
+    }
 }
 
 void app_run(void) {

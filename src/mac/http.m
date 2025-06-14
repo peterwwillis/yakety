@@ -58,11 +58,13 @@ DownloadHandle* http_download_start(const char* url, const char* destination,
         [config setTimeoutIntervalForRequest:30.0];
         [config setTimeoutIntervalForResource:300.0];
         state->session = [NSURLSession sessionWithConfiguration:config];
+        [state->session retain];
         
         state->task = [state->session downloadTaskWithURL:downloadURL
                                          completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
             if (error) {
                 state->download_error = error;
+                [state->download_error retain];
                 state->download_success = false;
             } else if (location) {
                 // Move file to destination
@@ -74,6 +76,7 @@ DownloadHandle* http_download_start(const char* url, const char* destination,
                     state->download_success = true;
                 } else {
                     state->download_error = moveError;
+                    [state->download_error retain];
                     state->download_success = false;
                 }
             }
@@ -223,6 +226,13 @@ void http_download_cleanup(DownloadHandle* handle) {
             
             if (state->session) {
                 [state->session invalidateAndCancel];
+                [state->session release];
+                state->session = nil;
+            }
+            
+            if (state->download_error) {
+                [state->download_error release];
+                state->download_error = nil;
             }
             
             free(state);

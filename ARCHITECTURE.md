@@ -1,498 +1,240 @@
 # Yakety Architecture
 
+Technical architecture documentation for the cross-platform voice-to-text application.
+
 ## Overview
 
-Yakety uses a sophisticated modular architecture that separates platform-specific code from business logic while introducing innovative patterns for cross-platform development. The architecture consists of:
+Yakety is a sophisticated voice-to-text application using a **C-style C++** architecture with platform-specific native integrations. The system combines AI transcription (Whisper), real-time audio processing, and system-level integration to provide seamless voice input across applications.
 
-1. **Module Headers** (`src/*.h`) - Define platform-agnostic interfaces
-2. **Platform Implementations** (`src/mac/*.m`, `src/windows/*.c`) - Platform-specific implementations
-3. **Business Logic** (`src/audio.c`, `src/transcription.cpp`, `src/menu.c`) - Platform-agnostic application code
-4. **Unified Main** (`src/main.c`) - Single entry point for both CLI and tray apps
-5. **Cross-Platform Utilities** - Advanced async patterns and thread management
-6. **Configuration System** (`src/preferences.c`) - INI-based settings management
+## Architectural Principles
 
-## Modules
+### Design Philosophy
+- **C-style C++**: Core logic in C, C++ only for whisper.cpp integration
+- **Platform-native UI**: SwiftUI (macOS), Win32 (Windows) for native look and feel
+- **Minimal dependencies**: Prefer platform APIs over third-party libraries
+- **Modular design**: Clear separation between business logic and platform code
 
-### Core Platform Modules
+### Language Strategy
+- **Core Logic**: C99 for simplicity, performance, and cross-platform compatibility
+- **macOS**: Objective-C for system integration, SwiftUI for modern dialogs
+- **Windows**: Pure Win32 C for lightweight native integration
+- **AI Integration**: C++ wrapper maintaining C-style interface
 
-- **`logging`** - Console/GUI logging abstraction with file rotation
-- **`clipboard`** - Copy and paste operations with automatic text insertion
-- **`overlay`** - On-screen status overlays with transparency
-- **`dialog`** - Message boxes and alerts with permission handling
-- **`menu`** - System tray/menubar management (singleton pattern) with dark mode support
-- **`keylogger`** - Keyboard event monitoring (singleton pattern) with FN key detection
-- **`app`** - Application lifecycle management with atomic state and unified run loops
-- **`utils`** - Platform utilities (time, sleep, paths, atomic operations, responsive operations)
-- **`preferences`** - INI-based configuration management with hotkey persistence
+## Directory Structure
 
-### Business Logic Modules
-
-- **`audio`** - Audio recording using miniaudio (16kHz mono, Whisper-optimized)
-- **`transcription`** - Speech-to-text using OpenAI Whisper with GPU acceleration (Metal/Vulkan)
-- **`menu`** - Cross-platform menu business logic with hotkey configuration
-
-## Build System
-
-The advanced CMake build system creates:
-
-1. **`platform`** - Static library containing all platform implementations
-2. **`yakety-cli`** - CLI executable for terminal use
-3. **`yakety-app`** - GUI/tray executable (.app bundle on macOS)
-4. **`recorder`** - Standalone audio recording utility
-5. **`transcribe`** - File-based transcription utility
-
-**Build Features:**
-- **Preset-based builds** - `cmake --preset release/debug/vs-debug`
-- **Universal binaries** - macOS builds for Intel and Apple Silicon
-- **Automated dependencies** - Whisper.cpp auto-download and compilation
-- **Icon generation** - Automated asset creation from master icon
-- **GPU acceleration** - Metal (macOS) and Vulkan (Windows) with fallbacks
-- **Distribution packaging** - Automated DMG/ZIP creation with code signing
-
-## Key Design Principles
-
-1. **No Platform Code in Business Logic** - All platform operations go through module interfaces
-2. **Single Source Truth** - One `main.c` for both app types using `APP_ENTRY_POINT` macro
-3. **Clean Interfaces** - Well-defined module APIs with no platform leakage
-4. **Singleton Patterns** - Global state managed through clean singleton APIs (menu, keylogger)
-5. **Thread Safety** - Atomic operations for cross-thread state management
-6. **Robust Error Handling** - Proper error propagation and cleanup on failure
-7. **Platform-Agnostic Entry Points** - `APP_ENTRY_POINT` handles all platform variations automatically
-8. **Blocking Async Pattern** - Revolutionary approach combining sync code simplicity with UI responsiveness
-9. **Graceful Degradation** - Automatic fallbacks for model loading, GPU acceleration, and permissions
-10. **Configuration Persistence** - INI-based settings with platform-appropriate storage locations
-
-## Adding New Platforms
-
-To add a new platform (e.g., Linux):
-
-1. Create `src/linux/` directory
-2. Implement all module interfaces for the platform
-3. Update CMakeLists.txt to include the new platform sources
-4. No changes needed to business logic or main.c
-
-## Entry Point Architecture
-
-The `APP_ENTRY_POINT` macro in `app.h` provides a clean abstraction for platform-specific entry points:
-
-```c
-// In main.c - simple, clean entry point
-int app_main(int argc, char** argv, bool is_console) {
-    // Main application logic here
-}
-
-APP_ENTRY_POINT  // Expands to platform-specific main/WinMain
+```
+src/
+├── *.{c,h}                # Cross-platform business logic
+├── transcription.cpp      # C++ integration with whisper.cpp
+├── mac/                   # macOS platform layer
+│   ├── *.m               # Objective-C implementations
+│   ├── dialogs/*.swift   # SwiftUI dialog implementations
+│   └── Info.plist        # App bundle configuration
+├── windows/              # Windows platform layer
+│   ├── *.c               # Win32 API implementations
+│   └── yakety.rc         # Windows resources
+└── tests/                # Component test programs
 ```
 
-**Platform Expansions:**
-- **Windows Tray**: `WinMain()` → `app_main(0, NULL, false)`
-- **Windows CLI**: `main()` → `app_main(argc, argv, true)`
-- **macOS Tray**: `main()` → `app_main(0, NULL, false)`
-- **macOS CLI**: `main()` → `app_main(argc, argv, true)`
+## Component Architecture
 
-## Singleton Pattern Implementation
+### 1. Application Layer
+- **Entry Point**: `main.c` - Unified CLI/GUI application logic
+- **App Framework**: `app.h` - Platform-agnostic lifecycle management
+- **Build System**: Multi-target CMake with platform-specific linking
 
-Key modules use singleton patterns for clean global state management:
+### 2. Core Business Logic (Platform-Agnostic)
 
-### Menu System
-```c
-// Clean singleton API
-int menu_init(void);           // Initialize with default items
-int menu_show(void);           // Show in system tray/menubar
-void menu_hide(void);          // Hide menu
-void menu_update_item(int index, const char* title);  // Update item by index
-void menu_cleanup(void);       // Cleanup resources
+#### Audio Processing (`audio.{c,h}`)
+- **Responsibility**: Real-time audio capture using miniaudio
+- **Features**: 16kHz mono recording optimized for Whisper, buffer management
+- **Threading**: Background audio processing with callback mechanisms
+
+#### Transcription Engine (`transcription.{cpp,h}`)
+- **Responsibility**: Whisper.cpp integration for speech-to-text
+- **Design**: C++ implementation with C-style interface
+- **Features**: Model loading, GPU acceleration, text cleanup, language support
+
+#### Model Management (`models.{c,h}`)
+- **Responsibility**: Whisper model discovery, loading, and management
+- **Strategy**: Bundled model → custom models → downloadable models → fallback
+- **API**: Single `models_load()` function handles all scenarios
+
+#### Keyboard Monitoring (`keylogger.h`)
+- **Responsibility**: Global hotkey detection across platforms
+- **Features**: Customizable key combinations, permission handling
+- **Implementation**: Platform-specific (Accessibility API on macOS, hooks on Windows)
+
+#### System Integration
+- **Menu System** (`menu.{c,h}`): System tray/menu bar integration
+- **Configuration** (`preferences.{c,h}`): Cross-platform settings persistence
+- **Clipboard** (`clipboard.h`): Automated text insertion
+
+### 3. Platform Abstraction Layer
+
+#### macOS Implementation (`src/mac/`)
+```
+mac/
+├── app.m                 # NSApplication lifecycle
+├── dialog.m              # SwiftUI dialog coordination
+├── dialogs/              # SwiftUI dialog components
+│   ├── SwiftUIModelsDialog.swift
+│   └── swiftui_bridge.{h,mm}
+├── keylogger.c           # Accessibility API integration
+├── menu.m                # NSStatusBar implementation
+└── *.m                   # Other platform implementations
 ```
 
-### Keylogger System
-```c
-// Singleton with struct-based state (Windows)
-typedef struct {
-    HHOOK keyboard_hook;
-    KeyCallback on_press;
-    KeyCallback on_release;
-    void* userdata;
-    bool paused;
-    KeyCombination target_combo;
-    // ... other state
-} KeyloggerState;
+#### Windows Implementation (`src/windows/`)
+```
+windows/
+├── app.c                 # Windows message loop
+├── dialog.c              # Win32 dialog implementations
+├── keylogger.c           # Low-level keyboard hooks
+├── menu.c                # System tray implementation
+└── yakety.rc             # Resource definitions
 ```
 
-### Application State
-```c
-// Atomic state management
-bool app_is_running(void);     // Thread-safe running state check
-void app_quit(void);           // Thread-safe quit operation
-bool app_is_console(void);     // Application type query
+### 4. User Interface Architecture
+
+#### Dialog System
+```
+dialog.h (Common Interface)
+├── mac/dialog.m (SwiftUI Coordinator)
+│   └── dialogs/*.swift (SwiftUI Components)
+└── windows/dialog.c (Win32 Implementation)
 ```
 
-## Thread Safety
+**Dialog Types**:
+- Model selection and download with progress
+- Hotkey configuration with live capture
+- Permission requests and error handling
 
-The architecture ensures thread safety through:
+#### System Integration
+- **Overlay System**: Real-time status during recording/processing
+- **Background Operation**: System tray with minimal UI footprint
+- **Native Integration**: Platform-appropriate permissions and accessibility
 
-1. **Atomic Operations** - `utils_atomic_read_bool()` / `utils_atomic_write_bool()`
-2. **Main Thread Operations** - Keyboard hooks and UI operations run on main thread
-3. **Background Processing** - Model loading and transcription on worker threads
-4. **Proper Synchronization** - Thread-safe callbacks and state updates
+## Runtime Flow
 
-## Blocking Async Pattern
+### Application Startup
+1. **Platform Detection** → App framework initialization
+2. **Preference Loading** → Configuration validation and migration
+3. **Model Loading** → Bundled → custom → downloadable → dialog
+4. **System Integration** → Menu, keyboard monitor, permissions
+5. **Background Operation** → Event loop with hotkey monitoring
 
-Yakety implements a unique "blocking async" pattern that combines the simplicity of synchronous code with responsive UI:
+### Voice Input Workflow
+1. **Hotkey Detection** (Platform keylogger) → Audio recording start
+2. **Audio Capture** (miniaudio) → 16kHz mono buffer collection
+3. **Transcription** (whisper.cpp) → AI processing with GPU acceleration
+4. **Text Processing** → Cleanup, formatting, language detection
+5. **System Integration** → Clipboard paste to active application
 
-### Traditional Callback Approach (Complex)
-```c
-// Complex callback chain for model loading
-utils_execute_async(load_model_async, NULL, on_model_loaded);
-  -> on_model_loaded checks success
-    -> if failure: utils_execute_main_thread(3000, delayed_retry, NULL)
-      -> delayed_retry calls utils_execute_async again
-    -> if success: continue_app_initialization()
+### Threading Model
+- **Main Thread**: UI operations, event handling, system integration
+- **Audio Thread**: Real-time audio capture and buffer management
+- **Transcription Thread**: Background AI processing
+- **Thread Safety**: Mutex synchronization, atomic state management
+
+## Build System Architecture
+
+### CMake Configuration
+- **Multi-preset**: release, debug, vs-debug configurations
+- **External Projects**: Automatic whisper.cpp clone and build
+- **Asset Pipeline**: SVG → multi-resolution PNG/ICO/ICNS conversion
+- **Platform Libraries**: Static linking with conditional GPU acceleration
+
+### Build Targets
+```
+Primary Executables:
+├── yakety-cli            # Command-line interface
+├── yakety-app            # GUI application (platform-specific name)
+├── recorder              # Standalone audio utility
+└── transcribe            # Batch transcription tool
+
+Distribution Packages:
+├── package-cli-<platform>   # CLI tools bundle
+├── package-app-<platform>   # GUI application installer
+└── upload                   # Automated distribution
 ```
 
-### Blocking Async Approach (Simple)
-```c
-// Clean sequential code that keeps UI responsive
-static void app_initialization_blocking(void) {
-    overlay_show("Loading model");
-    
-    // This blocks BUT keeps UI responsive via event pumping!
-    void* result = utils_execute_async_blocking(load_model_async, NULL);
-    
-    if (!result && !g_is_fallback_attempt) {
-        overlay_show_error("Falling back to base model");
-        g_is_fallback_attempt = true;
-        
-        // Responsive sleep - UI stays alive
-        utils_sleep_responsive(3000);
-        
-        result = utils_execute_async_blocking(load_model_async, NULL);
-    }
-    
-    if (!result) {
-        overlay_show_error("Failed to load model");
-        utils_sleep_responsive(3000);
-        app_quit();
-        return;
-    }
-    
-    overlay_hide();
-    continue_app_initialization();
-}
-```
+### Dependency Management
+- **whisper.cpp**: Auto-cloned, configured, and built
+- **AI Models**: Auto-downloaded during build (~110MB)
+- **Platform Dependencies**: Framework discovery and linking
+- **Asset Generation**: Automated icon and resource processing
 
-### How Event Pumping Works
+## Advanced Features
 
-The blocking async functions maintain UI responsiveness by continuously processing platform events:
-
-**macOS Implementation:**
-```objc
-while (!ctx.completed) {
-    // Process UI events with short timeout
-    NSEvent* event = [NSApp nextEventMatchingMask:NSEventMaskAny
-                                       untilDate:[NSDate dateWithTimeIntervalSinceNow:0.001]
-                                          inMode:NSDefaultRunLoopMode
-                                         dequeue:YES];
-    if (event) {
-        [NSApp sendEvent:event];  // Keep overlays updating, handle quit, etc.
-    }
-    
-    if (!app_is_running()) break;  // Respect quit requests
-    usleep(100);  // Small yield
-}
-```
-
-**Windows Implementation:**
-```c
-while (InterlockedOr(&ctx.completed, 0) == 0) {
-    MSG msg;
-    if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);  // Keep UI responsive
-    }
-    
-    if (!app_is_running()) break;  // Respect quit requests
-    Sleep(1);  // Small yield
-}
-```
-
-### Benefits
-
-1. **Sequential Logic** - No callback spaghetti, reads like synchronous code
-2. **UI Responsiveness** - Overlays update, user can quit, tray icon works
-3. **Error Handling** - Clean if/else flow instead of nested callbacks
-4. **Debugging** - Stack traces show the actual flow, not callback indirection
-5. **Maintainability** - Easy to understand and modify the initialization sequence
-
-### API Functions
-
-- `app_execute_async_blocking(work_fn, arg)` - Execute async work, block with event pumping (**NOT reentrant**)
-- `app_execute_async_blocking_all(tasks[], args[], count)` - Execute multiple async tasks concurrently (Promise.all() equivalent)
-- `app_sleep_responsive(milliseconds)` - Sleep while keeping UI responsive
-
-### Important Constraints
-
-**`app_execute_async_blocking()` is NOT reentrant** - it cannot be called from:
-- Event handlers (menu callbacks, key events, etc.)
-- Completion callbacks from other async operations  
-- Any code that runs during event pumping
-
-This is by design - the function pumps the main event loop and only one blocking operation can be active at a time. For concurrent execution, use `app_execute_async_blocking_all()` instead.
-
-### Concurrent Execution (Promise.all() Equivalent)
-
-For scenarios where multiple independent async operations can run in parallel:
-
-```c
-// Example: Load multiple models concurrently
-static void* load_base_model(void* arg) { /* ... */ }
-static void* load_large_model(void* arg) { /* ... */ }
-static void* verify_audio_devices(void* arg) { /* ... */ }
-
-// Set up concurrent tasks
-async_work_fn tasks[] = { load_base_model, load_large_model, verify_audio_devices };
-void* args[] = { NULL, NULL, NULL };
-
-// Execute all tasks concurrently while keeping UI responsive
-void** results = app_execute_async_blocking_all(tasks, args, 3);
-
-if (results) {
-    // Check individual results
-    bool base_loaded = (bool)(intptr_t)results[0];
-    bool large_loaded = (bool)(intptr_t)results[1]; 
-    bool audio_ready = (bool)(intptr_t)results[2];
-    
-    free(results); // Caller must free results array
-}
-```
-
-**Benefits of Concurrent Execution:**
-- **Parallelism** - Multiple CPU-intensive tasks run simultaneously
-- **Faster Initialization** - Reduces total startup time
-- **UI Responsiveness** - Event pumping keeps overlays and user interactions working
-- **Simple Error Handling** - Check individual results after all complete
-- **Resource Efficiency** - Better CPU utilization across cores
-
-This pattern is particularly useful for initialization sequences, file operations, or any async work where you want the simplicity of blocking code without freezing the UI.
-
-## Remote Development Infrastructure
-
-Yakety includes a sophisticated remote development setup for cross-platform development, particularly useful for developing Windows features from macOS:
-
-### WSL-Based Development Bridge
-
-**Components:**
-- **`wsl/setup-wsl-ssh.sh`** - One-time SSH server configuration in WSL
-- **`wsl/start-wsl-ssh.bat`** - SSH port forwarding startup script
-- **`wsl/REMOTE_DEVELOPMENT.md`** - Comprehensive development guide
-
-### Development Workflow
-
-```bash
-# On Windows (one-time setup)
-wsl/setup-wsl-ssh.sh
-
-# On Windows (after each reboot) - run as administrator
-wsl/start-wsl-ssh.bat
-
-# From macOS (automated via Claude Code)
-rsync -av src/ badlogic@192.168.1.21:/mnt/c/workspaces/yakety/src/
-ssh badlogic@192.168.1.21 "cd /mnt/c/workspaces/yakety && cmd.exe /c 'build.bat'"
-ssh badlogic@192.168.1.21 "build/bin/yakety-cli.exe"
-```
-
-### Benefits
-
-1. **Native macOS Development** - Use familiar tools and IDE
-2. **Windows Build Testing** - Immediate feedback on Windows-specific issues
-3. **Claude Code Integration** - Seamless automated workflow
-4. **SSH-Based Sync** - Fast, secure file synchronization
-5. **Cross-Platform Debugging** - Test both platforms without context switching
-
-### Network Architecture
-
-- **WSL Ubuntu** - Linux development environment on Windows
-- **SSH Bridge** - Secure connection between macOS and Windows WSL
-- **Port Forwarding** - Windows batch script handles SSH port mapping
-- **Rsync Protocol** - Efficient file synchronization
-
-## Cross-Platform Main Thread Dispatching
-
-### Problem
-
-Different macOS app types require different main thread dispatching approaches:
-- **GUI Apps**: Use `dispatch_async(dispatch_get_main_queue())` which integrates with NSApp event processing
-- **Console Apps**: Need `CFRunLoopPerformBlock()` + `CFRunLoopWakeUp()` to work with manual `CFRunLoopRunInMode()` calls
-
-### Solution: `app_dispatch_main()`
-
-A centralized dispatching function that automatically chooses the right method:
-
-```c
-// In src/mac/dispatch.h
-void app_dispatch_main(void (^block)(void));
-
-// Usage throughout macOS modules
-app_dispatch_main(^{
-    // This block runs on main thread using the optimal method
-    overlay_window.alpha = 1.0;
-});
-```
-
-### Implementation
-
-```c
-void app_dispatch_main(void (^block)(void)) {
-    if (app_is_console()) {
-        // For console apps: CFRunLoop integration
-        CFRunLoopPerformBlock(CFRunLoopGetMain(), kCFRunLoopCommonModes, block);
-        CFRunLoopWakeUp(CFRunLoopGetMain());
-    } else {
-        // For GUI apps: GCD integration  
-        dispatch_async(dispatch_get_main_queue(), block);
-    }
-}
-```
-
-### Benefits
-
-1. **Automatic Selection** - No need for app type checking in every module
-2. **Code Consistency** - All macOS modules use the same dispatching API
-3. **Maintainability** - Dispatch logic centralized in one location
-4. **Performance** - Each app type uses the optimal scheduling method
-
-### Used By
-
-- `utils.m` - Async work completion callbacks
-- `overlay.m` - All UI update operations  
-- `menu.m` - Menu item updates
-- Any future macOS modules requiring main thread execution
-
-## Enhanced Transcription System
-
-Yakety includes a sophisticated transcription system built on OpenAI's Whisper model with several advanced features:
-
-### GPU Acceleration Support
-
-**Automatic Backend Selection:**
+### GPU Acceleration
 - **macOS**: Metal acceleration with CoreML fallback
 - **Windows**: Vulkan acceleration with CPU fallback
-- **Fallback Logic**: Automatically degrades to CPU if GPU initialization fails
+- **Configuration**: Automatic detection, runtime switching
 
-### Advanced Model Management
+### Cross-Platform Development
+- **Remote Development**: WSL-based Windows development from macOS
+- **File Synchronization**: rsync-based source sync
+- **Build Automation**: SSH-based remote build execution
 
-**Features:**
-- **Flash Attention**: Enabled for improved performance and memory efficiency
-- **Custom Model Support**: User-configurable model paths via preferences
-- **Automatic Fallback**: Failed custom models automatically fall back to bundled base model
-- **Model Validation**: Comprehensive error handling during model loading
-- **Language Configuration**: Configurable transcription language settings
+### Model Architecture
+- **Bundled Model**: Base multilingual model for immediate functionality
+- **Custom Models**: User-provided model support with validation
+- **Download System**: On-demand model acquisition with progress
+- **Graceful Fallbacks**: Progressive fallback chain with user dialogs
 
-### Text Processing Pipeline
+## Security Considerations
 
-**Smart Filtering:**
-```c
-// Removes non-speech artifacts
-- Bracket notation: [MUSIC], [NOISE], [LAUGHTER]
-- Star notation: *coughs*, *clears throat*
-- Whisper timestamps and metadata
+### Permissions and Access
+- **macOS**: Microphone + accessibility permissions required
+- **Windows**: Administrator privileges for global hotkeys
+- **Code Signing**: Ad-hoc (development), proper certificates needed (distribution)
+
+### Data Handling
+- **Audio**: Never stored, processed in memory only
+- **Configuration**: Local file storage with secure defaults
+- **Network**: Model downloads only, no telemetry or data transmission
+
+## Testing Strategy
+
+### Current Approach
+- **Manual Testing**: Dialog functionality and cross-platform verification
+- **Component Tests**: Individual UI component validation (macOS only)
+- **Integration Tests**: End-to-end workflow testing
+
+### Test Programs
+```bash
+test-model-dialog              # Model selection UI
+test-keycombination-dialog     # Hotkey capture functionality  
+test-download-dialog           # Model download with progress
 ```
 
-**Text Enhancement:**
-- Automatic whitespace cleanup and normalization
-- Trailing space addition for seamless pasting
-- UTF-8 encoding consistency across platforms
+## Distribution Architecture
 
-### Error Recovery
+### Package Structure
+**macOS**: App bundles with embedded resources and frameworks  
+**Windows**: Portable executables with dependency bundling  
+**Both**: Self-contained distributions including AI models
 
-**Robust Fallback System:**
-1. **Primary Model Load** - Attempt user-configured model
-2. **Fallback Model Load** - Use bundled base model on failure
-3. **GPU Fallback** - Degrade to CPU processing if GPU fails
-4. **Graceful Error Display** - User-friendly error messages via overlay system
+### Code Signing and Security
+- **macOS**: Ad-hoc signing, quarantine removal, bundle notarization ready
+- **Windows**: Resource files with version info, code signing TODO
 
-## Configuration Management System
+## Future Architecture Considerations
 
-Yakety implements a comprehensive configuration system using platform-appropriate storage:
+### Scalability
+- **Multi-model Support**: Runtime model switching
+- **Plugin Architecture**: Custom transcription backends
+- **Cloud Integration**: Optional cloud-based transcription
 
-### Storage Locations
+### Performance
+- **Model Optimization**: Quantized models, streaming transcription
+- **Memory Management**: Buffer optimization, model caching
+- **GPU Utilization**: Advanced Metal/Vulkan compute pipeline
 
-**macOS:**
-- **Config**: `~/.yakety/config.ini`
-- **Logs**: `~/Library/Logs/Yakety/`
-- **Models**: `~/.yakety/models/`
+### Platform Expansion
+- **Linux Support**: X11/Wayland integration
+- **Mobile**: iOS/Android voice input extensions
+- **Cloud**: Server-side transcription service
 
-**Windows:**
-- **Config**: `%APPDATA%\Yakety\config.ini`
-- **Logs**: `%LOCALAPPDATA%\Yakety\Logs\`
-- **Models**: `%APPDATA%\Yakety\models\`
-
-### Configuration Features
-
-**Hotkey Persistence:**
-```ini
-[yakety]
-# Platform-specific hotkey storage
-# macOS: Fn key = keycode 63, modifiers 8388608
-# Windows: Right Ctrl = scancode 29, extended flag 1
-hotkey_keycode = 63
-hotkey_modifiers = 8388608
-```
-
-**Advanced Settings:**
-- **Custom Model Paths**: Full path specification with validation
-- **Launch at Login**: OS integration for startup behavior
-- **Transcription Language**: Whisper language model configuration
-- **Debug Logging**: Configurable log levels and rotation
-
-### Platform Integration
-
-**macOS Integration:**
-- **Launch Agent**: Automatic plist generation for login items
-- **Sandbox Compatibility**: Proper path handling for App Store distribution
-- **Accessibility Permissions**: Automated permission request flow
-
-**Windows Integration:**
-- **Registry Integration**: Windows startup folder management
-- **UAC Compatibility**: Elevation-aware permission handling
-- **File Association**: Optional file type associations for transcription
-
-## Module Dependencies
-
-```
-main.c
-  ├── app.h (lifecycle with atomic state)
-  ├── logging.h (output)
-  ├── audio.h (recording)
-  ├── transcription.h (speech-to-text)
-  ├── keylogger.h (singleton hotkey monitoring)
-  ├── clipboard.h (paste results)
-  ├── overlay.h (status display)
-  ├── utils.h (timing, paths, atomic ops)
-  └── menu.h (singleton tray management)
-      └── dialog.h (menu actions)
-```
-
-## Platform Library Contents
-
-### macOS (`libplatform.a`)
-- `logging.m` - NSLog for GUI, printf for console with file rotation
-- `clipboard.m` - NSPasteboard + CGEvent simulation with automatic pasting
-- `overlay.m` - NSWindow overlay with transparency and multi-display support
-- `dialog.m` - NSAlert with comprehensive accessibility permission handling
-- `menu.m` - NSStatusItem singleton with proper retention, dark mode, and error handling
-- `keylogger.c` - CGEventTap with sophisticated FN key detection via flags
-- `app.m` - NSApplication with atomic state management and unified run loop
-- `utils.m` - Foundation utilities including accessibility settings, atomic operations, and responsive timing
-- `dispatch.m` - Centralized main thread dispatching that automatically chooses optimal method
-- `preferences.m` - NSUserDefaults and file-based INI configuration management
-
-### Windows (`platform.lib`)
-- `logging.c` - OutputDebugString for GUI, printf for console with file rotation
-- `clipboard.c` - Windows clipboard API + SendInput with automatic pasting
-- `overlay.c` - Layered window with transparency and multi-monitor support
-- `dialog.c` - MessageBox with comprehensive key combination capture support
-- `menu.c` - System tray singleton with dark mode support, proper error handling, and icon management
-- `keylogger.c` - Low-level keyboard hook with sophisticated struct-based state management
-- `app.c` - Windows message pump with atomic state management and responsive event processing
-- `utils.c` - Windows timer, file APIs, atomic operations, and responsive timing functions
-- `preferences.c` - Registry and INI-based configuration management
+This architecture provides a robust foundation for cross-platform voice input while maintaining performance, security, and native platform integration.

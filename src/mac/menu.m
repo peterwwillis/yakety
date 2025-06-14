@@ -146,6 +146,7 @@ int menu_show(void) {
       if (iconPath) {
           statusIcon = [[NSImage alloc] initWithContentsOfFile:iconPath];
           if (statusIcon) {
+              [statusIcon retain];
               [statusIcon setTemplate:YES];            // Makes it adapt to dark/light mode
               [statusIcon setSize:NSMakeSize(18, 18)]; // Standard menu bar icon size
               statusItem.button.image = statusIcon;
@@ -174,7 +175,9 @@ int menu_show(void) {
 
       // Create menu - already retained by alloc/init
       statusMenu = [[NSMenu alloc] init];
+      [statusMenu retain];
       menuDelegate = [[MenuBarDelegate alloc] initWithMenuSystem:g_menu];
+      [menuDelegate retain];
 
       // Add all menu items
       for (int i = 0; i < g_menu->item_count; i++) {
@@ -234,7 +237,10 @@ void menu_hide(void) {
         statusIcon = nil;
     }
 
-    menuDelegate = nil;
+    if (menuDelegate) {
+        [menuDelegate release];
+        menuDelegate = nil;
+    }
     g_menu_showing = false;
 }
 

@@ -38,6 +38,12 @@ function(build_whisper_cpp)
                 -DGGML_NATIVE=OFF
             )
         endif()
+        # Set the same macOS deployment target as the main project
+        if(CMAKE_OSX_DEPLOYMENT_TARGET)
+            list(APPEND WHISPER_CMAKE_ARGS
+                "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}"
+            )
+        endif()
     elseif(WIN32)
         # Enable native optimizations for better performance
         list(APPEND WHISPER_CMAKE_ARGS -DGGML_NATIVE=ON)

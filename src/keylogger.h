@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define MAX_KEYS_IN_COMBINATION 4
+
 typedef void (*KeyCallback)(void *userdata);
 
 // Unified key info structure for both platforms
@@ -13,8 +15,8 @@ typedef struct {
 
 // Key combination structure supporting multiple keys
 typedef struct {
-	KeyInfo keys[4];// macOS uses only keys[0], Windows can use multiple
-	int count;      // Number of keys in combination
+	KeyInfo keys[MAX_KEYS_IN_COMBINATION];// macOS uses only keys[0], Windows can use multiple
+	int count;                            // Number of keys in combination
 } KeyCombination;
 
 int keylogger_init(KeyCallback on_press, KeyCallback on_release, void *userdata);

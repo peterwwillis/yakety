@@ -116,22 +116,6 @@ static void menu_configure_hotkey(void) {
         "Configure Hotkey", "Click in the box below and press your desired key combination:", &combo);
 
     if (result) {
-        // Build display message
-        char message[256] = "Hotkey configured:\n";
-        for (int i = 0; i < combo.count; i++) {
-            char key_info[128];
-#ifdef _WIN32
-            snprintf(key_info, sizeof(key_info), "Key %d: scancode=0x%02X, extended=%d\n", i + 1, combo.keys[i].code,
-                     combo.keys[i].flags);
-#else
-            // macOS format - show keycode and modifier flags
-            snprintf(key_info, sizeof(key_info), "Key %d: keycode=%d, modifiers=0x%X\n", i + 1, combo.keys[i].code,
-                     combo.keys[i].flags);
-#endif
-            strcat(message, key_info);
-        }
-        dialog_info("Hotkey Configured", message);
-
         // Update the keylogger to monitor this combination
         keylogger_set_combination(&combo);
 

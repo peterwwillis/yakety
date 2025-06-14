@@ -1,8 +1,5 @@
 #include "../dialog.h"
 #include "../http.h"
-#include "dialogs/models_dialog.h"
-#include "dialogs/hotkey_dialog.h"
-#include "dialogs/download_dialog.h"
 #import <Cocoa/Cocoa.h>
 #import <objc/runtime.h>
 
@@ -73,17 +70,6 @@ bool dialog_wait_for_permission(void) {
     }
 }
 
-bool dialog_keycombination_capture(const char *title, const char *message, KeyCombination *result) {
-    return hotkey_dialog_show(title, message, result);
-}
-
-bool dialog_models_and_language(const char *title, char *selected_model, size_t model_buffer_size, 
-                                char *selected_language, size_t language_buffer_size,
-                                char *download_url, size_t url_buffer_size) {
-    return models_dialog_show(title, selected_model, model_buffer_size, selected_language, language_buffer_size, download_url, url_buffer_size);
-}
-
-int dialog_model_download(const char *model_name, const char *download_url, const char *file_path) {
-    return download_dialog_show(model_name, download_url, file_path);
-}
+// Note: dialog_keycombination_capture, dialog_models_and_language, and dialog_model_download
+// are now implemented directly in Swift using @_cdecl and will be linked automatically
 

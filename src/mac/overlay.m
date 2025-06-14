@@ -19,6 +19,7 @@ void overlay_init(void) {
                                                       styleMask:NSWindowStyleMaskBorderless
                                                         backing:NSBackingStoreBuffered
                                                           defer:NO];
+          [overlayWindow retain];
 
           // Configure window properties
           [overlayWindow setOpaque:NO];
@@ -30,6 +31,7 @@ void overlay_init(void) {
 
           // Create the background view with rounded corners and green border
           NSView *contentView = [[NSView alloc] initWithFrame:frame];
+          [contentView retain];
           contentView.wantsLayer = YES;
 
           CALayer *layer = contentView.layer;
@@ -41,6 +43,7 @@ void overlay_init(void) {
 
           // Default to Yakety green border
           g_currentTintColor = [NSColor colorWithRed:0x22 / 255.0 green:0xC5 / 255.0 blue:0x5E / 255.0 alpha:1.0];
+          [g_currentTintColor retain];
           layer.borderColor = [g_currentTintColor CGColor];
           layer.borderWidth = 1.0;
 
@@ -53,6 +56,7 @@ void overlay_init(void) {
           NSString *iconPath = [[NSBundle mainBundle] pathForResource:@"menubar" ofType:@"png"];
           if (iconPath) {
               appIcon = [[NSImage alloc] initWithContentsOfFile:iconPath];
+              [appIcon retain];
               [appIcon setTemplate:YES]; // Make it adapt to the dark background
               log_info("Loaded menubar icon from bundle: %s", [iconPath UTF8String]);
           }
@@ -65,6 +69,7 @@ void overlay_init(void) {
 
               if ([[NSFileManager defaultManager] fileExistsAtPath:cliIconPath]) {
                   appIcon = [[NSImage alloc] initWithContentsOfFile:cliIconPath];
+                  [appIcon retain];
                   [appIcon setTemplate:YES]; // Make it adapt to the dark background
                   log_info("Loaded menubar icon from CLI directory: %s", [cliIconPath UTF8String]);
               }
@@ -95,6 +100,7 @@ void overlay_init(void) {
           // Create icon view (small icon on the left) - only if we have an icon
           if (appIcon) {
               iconView = [[NSImageView alloc] initWithFrame:NSMakeRect(8, verticalMargin, 20, 20)];
+              [iconView retain];
               [iconView setImage:appIcon];
               [iconView setImageScaling:NSImageScaleProportionallyDown];
 
@@ -118,6 +124,7 @@ void overlay_init(void) {
           CGFloat labelY = (frame.size.height - labelHeight) / 2 - 2; // Move up to optically center
 
           messageLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(labelX, labelY, labelWidth, labelHeight)];
+          [messageLabel retain];
           [messageLabel setEditable:NO];
           [messageLabel setBordered:NO];
           [messageLabel setDrawsBackground:NO];
@@ -180,6 +187,7 @@ static void overlay_show_with_color(const char *message, NSColor *tintColor) {
 
               // Create attributed string with paragraph style for vertical centering
               NSMutableParagraphStyle *paragraphStyle = [[NSMutableParagraphStyle alloc] init];
+              [paragraphStyle retain];
               [paragraphStyle setAlignment:NSTextAlignmentCenter];
 
               NSDictionary *attributes = @{
@@ -190,6 +198,7 @@ static void overlay_show_with_color(const char *message, NSColor *tintColor) {
 
               NSAttributedString *attributedText = [[NSAttributedString alloc] initWithString:messageString
                                                                                    attributes:attributes];
+              [attributedText retain];
 
               // Calculate required size for text
               NSSize textSize = [attributedText size];
@@ -272,9 +281,17 @@ void overlay_hide(void) {
 }
 
 void overlay_cleanup(void) {
+    if (g_currentTintColor) {
+        [g_currentTintColor release];
+        g_currentTintColor = nil;
+    }
+    
     if (overlayWindow) {
         [overlayWindow close];
+        [overlayWindow release];
         overlayWindow = nil;
+        // messageLabel and iconView are subviews, will be released with window
         messageLabel = nil;
+        iconView = nil;
     }
 }

@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
-project(yakety VERSION 1.0.0)
+
+project(yakety VERSION 1.0.0 LANGUAGES C CXX Swift)
 
 # C/C++ standards
 set(CMAKE_C_STANDARD 99)
@@ -15,8 +16,10 @@ include(PlatformSetup)
 
 # Platform-specific setup
 if(APPLE)
-    # Build universal binary for both Intel and Apple Silicon
-    set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "Build for both architectures" FORCE)
+    # Build for ARM64 only (Apple Silicon)
+    set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "Build for Apple Silicon" FORCE)
+    # Set minimum macOS version for modern APIs and Swift 6 compatibility
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "Minimum macOS version" FORCE)
 endif()
 
 # Generate icons if needed
@@ -49,10 +52,10 @@ if(APPLE)
         src/mac/clipboard.m
         src/mac/overlay.m
         src/mac/dialog.m
-        src/mac/dialogs/dialog_common.m
-        src/mac/dialogs/models_dialog.m
-        src/mac/dialogs/hotkey_dialog.m
-        src/mac/dialogs/download_dialog.m
+        src/mac/dialogs/dialog_utils.swift
+        src/mac/dialogs/hotkey_dialog.swift
+        src/mac/dialogs/models_dialog.swift
+        src/mac/dialogs/download_dialog.swift
         src/mac/menu.m
         src/mac/keylogger.c
         src/mac/app.m
@@ -83,6 +86,21 @@ endif()
 
 # Include directories for platform library
 target_include_directories(platform PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+# Configure Swift compiler flags to disable incremental compilation warnings
+if(APPLE)
+    # Force override of default Swift debug flags to remove -incremental
+    set(CMAKE_Swift_FLAGS_DEBUG "-Onone -g -disable-incremental-imports" CACHE STRING "Swift Debug flags" FORCE)
+    set(CMAKE_Swift_FLAGS_RELEASE "${CMAKE_Swift_FLAGS_RELEASE} -disable-incremental-imports" CACHE STRING "Swift Release flags" FORCE)
+endif()
+
+# Add Swift generated header include path for Xcode builds
+if(APPLE AND CMAKE_GENERATOR STREQUAL "Xcode")
+    target_include_directories(platform PRIVATE 
+        "$<$<CONFIG:Debug>:${CMAKE_BINARY_DIR}/platform.build/Debug/DerivedSources>"
+        "$<$<CONFIG:Release>:${CMAKE_BINARY_DIR}/platform.build/Release/DerivedSources>"
+    )
+endif()
 
 # Business logic sources
 set(BUSINESS_SOURCES
@@ -304,18 +322,20 @@ elseif(NOT WIN32)
             -g
             -O0
             -fno-omit-frame-pointer
-            -fsanitize=address
-            -fsanitize=undefined
+            # Note: Sanitizers disabled due to Swift compatibility issues
+            # -fsanitize=address
+            # -fsanitize=undefined
         )
-        # Add sanitizer libraries for linking
-        foreach(target yakety-cli yakety-app recorder transcribe)
-            target_link_options(${target} PRIVATE -fsanitize=address -fsanitize=undefined)
-        endforeach()
+        # Note: Sanitizer linking disabled due to Swift compatibility
+        # foreach(target yakety-cli yakety-app recorder transcribe)
+        #     target_link_options(${target} PRIVATE -fsanitize=address -fsanitize=undefined)
+        # endforeach()
     endif()
 
-    # Apply flags to all targets
+    # Apply flags to all targets for C/C++ only
     foreach(target yakety-cli yakety-app recorder transcribe)
-        target_compile_options(${target} PRIVATE ${WARNING_FLAGS})
+        target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:C>:${WARNING_FLAGS}>)
+        target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${WARNING_FLAGS}>)
     endforeach()
 endif()
 
@@ -484,6 +504,27 @@ if(APPLE)
     target_link_libraries(test-model-dialog platform)
     target_link_libraries(test-model-dialog "-framework Cocoa")
     set_target_properties(test-model-dialog PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin
+    )
+    
+    
+    # Key combination dialog test
+    add_executable(test-keycombination-dialog src/tests/test_keycombination_dialog.c)
+    target_link_libraries(test-keycombination-dialog platform)
+    target_link_libraries(test-keycombination-dialog "-framework Cocoa" "-framework SwiftUI")
+    set_target_properties(test-keycombination-dialog PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin
+    )
+    
+    # Download dialog test
+    add_executable(test-download-dialog src/tests/test_download_dialog.c)
+    target_link_libraries(test-download-dialog platform)
+    target_link_libraries(test-download-dialog "-framework Cocoa" "-framework SwiftUI")
+    set_target_properties(test-download-dialog PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
         RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin
         RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin
