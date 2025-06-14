@@ -33,6 +33,7 @@ cmake --build build --target yakety-app
 - **[Testing](docs/testing.md)** - Test programs, SwiftUI dialog verification
 - **[Deployment](docs/deployment.md)** - Packaging, distribution, server deployment
 - **[Files Catalog](docs/files.md)** - Complete file reference with dependencies
+- **[Windows development on macOS through WSL](wsl/wsl-development.md)** - Modify code on macOS, rsync, compile and run on Windows through WSL.
 
 ## Requirements
 
