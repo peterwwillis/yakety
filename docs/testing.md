@@ -1,261 +1,145 @@
-# Testing and Code Quality Documentation
+<!-- Generated: 2025-06-14 23:07:15 UTC -->
 
-## Overview
+# Testing
 
-This document provides an overview of the testing setup, code quality tools, and testing processes for the Yakety voice-to-text application.
+Yakety uses native C test programs to verify dialog system functionality on macOS. Tests focus on SwiftUI dialog implementations and user interaction flows.
 
-## Testing Framework and Setup
+**Test Location** - All test source files in `src/tests/`, executables built to `build-debug/bin/` or `build/bin/`
 
-### Test Framework
-- **No formal testing framework**: The project uses custom C test files with simple assertions
-- **Test approach**: Manual testing with dialog-based interaction tests
-- **Testing style**: Integration tests that verify UI components and functionality
+**Test Framework** - Custom test programs using platform dialog APIs, no external test frameworks
 
-### Test Files Location
-- **Main test directory**: `/src/tests/`
-- **Test executables**: Built to `/build/bin/` or `/build-debug/bin/`
+## Test Types
 
-### Available Test Programs
+### Dialog System Tests
 
-#### 1. Dialog Tests (macOS only)
-The project includes three main dialog test programs:
+**Model Selection Dialog** (`src/tests/test_model_dialog.c`)
+- Tests model/language selection UI via `dialog_models_and_language()` 
+- Verifies SwiftUI implementation in `src/mac/dialogs/models_dialog.swift`
+- Displays available models, language options, download URLs
+- Expected outputs: selected model path, language code, download URL
 
-**Model Dialog Test** (`test-model-dialog`)
-- **Source**: `src/tests/test_model_dialog.c`
-- **Purpose**: Tests the models and language selection dialog
-- **Features**: 
-  - Tests SwiftUI dialog integration
-  - Validates model selection functionality
-  - Tests language preference handling
+**Key Combination Capture** (`src/tests/test_keycombination_dialog.c`)  
+- Tests hotkey capture dialog via `dialog_keycombination_capture()`
+- Validates SwiftUI implementation in `src/mac/dialogs/hotkey_dialog.swift`
+- Captures modifier keys and key combinations for user configuration
+- Expected outputs: key combination structure with codes and flags
 
-**Key Combination Dialog Test** (`test-keycombination-dialog`)
-- **Source**: `src/tests/test_keycombination_dialog.c`
-- **Purpose**: Tests hotkey capture functionality
-- **Features**:
-  - Tests key combination capture
-  - Validates keylogger integration
-  - Tests dialog interaction with system-level key events
+**Download Progress Dialog** (`src/tests/test_download_dialog.c`)
+- Tests model download UI via `dialog_model_download()`
+- Uses SwiftUI implementation in `src/mac/dialogs/download_dialog.swift`
+- Downloads test file from httpbin.org to verify progress tracking
+- Expected outputs: download completion status (0=success, 1=cancelled, 2=error)
 
-**Download Dialog Test** (`test-download-dialog`)
-- **Source**: `src/tests/test_download_dialog.c`
-- **Purpose**: Tests model download functionality
-- **Features**:
-  - Tests HTTP download integration
-  - Validates progress reporting
-  - Tests file system operations
+### Platform Integration Tests
 
-#### 2. Test Characteristics
-- **Platform**: macOS only (uses Cocoa frameworks)
-- **Dependencies**: Links against platform library and system frameworks
-- **Execution**: Requires GUI environment and user interaction
-- **Validation**: Manual verification of dialog behavior
+**App Lifecycle** - All test programs initialize platform app via `app_init()` in `src/app.h`
+- Tests Cocoa setup on macOS with proper Swift integration
+- Validates event loop and dialog presentation
 
-## Test Organization
-
-### Build Integration
-Tests are integrated into the CMake build system:
-
+**Framework Linking** - CMake configuration links required frameworks:
 ```cmake
-# Test programs (lines 502-532 in CMakeLists.txt)
-if(APPLE)
-    add_executable(test-model-dialog src/tests/test_model_dialog.c)
-    target_link_libraries(test-model-dialog platform)
-    target_link_libraries(test-model-dialog "-framework Cocoa")
-    
-    add_executable(test-keycombination-dialog src/tests/test_keycombination_dialog.c)
-    target_link_libraries(test-keycombination-dialog platform)
-    target_link_libraries(test-keycombination-dialog "-framework Cocoa" "-framework SwiftUI")
-    
-    add_executable(test-download-dialog src/tests/test_download_dialog.c)
-    target_link_libraries(test-download-dialog platform)  
-    target_link_libraries(test-download-dialog "-framework Cocoa" "-framework SwiftUI")
-endif()
+# From CMakeLists.txt:515-516, 525-526
+target_link_libraries(test-keycombination-dialog "-framework Cocoa" "-framework SwiftUI")
+target_link_libraries(test-download-dialog "-framework Cocoa" "-framework SwiftUI")
 ```
 
-### Test Structure
-Each test follows a similar pattern:
-1. **Initialization**: Set up app environment and platform-specific requirements
-2. **Dialog Invocation**: Call the specific dialog function to test
-3. **Result Validation**: Check return values and side effects
-4. **Cleanup**: Properly clean up resources and exit
+## Running Tests
 
-## How to Run Tests
-
-### Prerequisites
-- **Platform**: macOS with Xcode Command Line Tools
-- **Build**: Project must be built first
-- **Permissions**: May require accessibility permissions for keylogger tests
-
-### Build Tests
+### Build Test Programs
 ```bash
-# Configure and build debug version (includes tests)
-cmake --preset debug
-cmake --build --preset debug
+# Debug build with test programs
+cmake --preset debug && cmake --build build-debug
 
-# Or build release version
-cmake --preset release  
-cmake --build --preset release
+# Release build  
+cmake --preset release && cmake --build build
 ```
+
+**Test Executables** - Located in `build-debug/bin/` or `build/bin/`:
+- `test-model-dialog`
+- `test-keycombination-dialog` 
+- `test-download-dialog`
 
 ### Execute Tests
 ```bash
-# Run individual test programs
-./build/bin/test-model-dialog
-./build/bin/test-keycombination-dialog
-./build/bin/test-download-dialog
-
-# Or from debug build
+# Run from build directory
 ./build-debug/bin/test-model-dialog
-./build-debug/bin/test-keycombination-dialog
+./build-debug/bin/test-keycombination-dialog  
 ./build-debug/bin/test-download-dialog
 ```
 
-### Test Execution Notes
-- Tests require user interaction with GUI dialogs
-- Results are validated through console output and manual verification
-- Some tests may require specific system permissions (microphone, accessibility)
-- Tests should be run in a GUI environment (not headless)
+**Expected Behavior** - Each test presents modal dialog, waits for user interaction, prints results to console
 
-## Code Quality Tools and Processes
+**Manual Verification** - Tests require user interaction:
+- Model dialog: Select model and language, verify console output matches selection
+- Hotkey dialog: Press key combination, verify captured keys display correctly
+- Download dialog: Observe progress bar, verify file creation at `/tmp/test_download.bin`
 
-### Code Formatting
+### Test Output Analysis
 
-#### Clang-Format Configuration
-- **Configuration file**: `.clang-format`
-- **Base style**: LLVM with customizations
-- **Settings**:
-  - Indent width: 4 spaces
-  - Column limit: 120 characters
-  - No tabs (spaces only)
-  - Attach braces style
-  - Space after C-style casts
-
-#### Format Rules
-```yaml
-BasedOnStyle: LLVM
-IndentWidth: 4
-UseTab: Never
-ColumnLimit: 120
-AllowShortIfStatementsOnASingleLine: false
-AllowShortLoopsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: Empty
-BreakBeforeBraces: Attach
-SpaceAfterCStyleCast: true
-AlignConsecutiveDeclarations: false
-AlignConsecutiveAssignments: false
-```
-
-### Compiler Warnings and Flags
-
-#### Development Flags (Non-Windows)
-```cmake
-# Warning flags applied to C/C++ targets
--Wall
--Wextra
--Werror
--Wno-error=unused-parameter
--Wno-error=unused-function
-```
-
-#### Debug-Specific Flags
-```cmake
-# Debug configuration
--g
--O0
--fno-omit-frame-pointer
-# Note: Sanitizers disabled due to Swift compatibility issues
-```
-
-### Code Quality Standards
-
-#### C-Style C++ Approach
-- **Philosophy**: Use C++ but with C-style conventions
-- **File extensions**: `.cpp` for C++ features needed by whisper.cpp, `.c` for pure C
-- **Naming**: C-style function and variable naming
-- **Memory management**: Prefer manual memory management over RAII
-
-#### Platform-Specific Code
-- **macOS**: Objective-C (.m) and Swift (.swift) for platform integration
-- **Windows**: Pure C implementation for platform features
-- **Cross-platform**: Core logic in C for maximum portability
-
-### Website Quality Tools
-
-#### Frontend Development
-- **TypeScript**: Type checking with `tsc --noEmit`
-- **Prettier**: Code formatting with `prettier --write .`
-- **ESBuild**: Build system with type checking
-- **Tailwind CSS**: Utility-first CSS framework
-
-#### Website Scripts
-```json
-{
-  "typecheck": "tsc --noEmit",
-  "format": "prettier --write .",
-  "build": "npm run clean && npm run build:css && node esbuild.mjs"
+**Model Dialog Results** (`test_model_dialog.c:14-22`):
+```c
+if (dialog_models_and_language(...)) {
+    printf("User selected model: %s\n", selected_model);
+    printf("User selected language: %s\n", selected_language); 
+    printf("Download URL: %s\n", download_url);
 }
 ```
 
-## CI/CD Configuration
+**Key Combination Results** (`test_keycombination_dialog.c:32-38`):
+```c
+for (int i = 0; i < MAX_KEYS_IN_COMBINATION && result.keys[i].code != 0; i++) {
+    printf("  Key %d: code=%u, flags=0x%x\n", i + 1, result.keys[i].code, result.keys[i].flags);
+}
+```
 
-### Current State
-- **No CI/CD pipeline**: The project lacks automated continuous integration
-- **Manual testing**: All testing is currently manual
-- **No automated quality checks**: No automated linting, testing, or formatting validation
+**Download Results** (`test_download_dialog.c:25-47`):
+```c
+switch (result) {
+    case 0: printf("Download completed successfully!\n"); break;
+    case 1: printf("Download was cancelled by user.\n"); break;
+    case 2: printf("Download failed with an error.\n"); break;
+}
+```
 
-### Build Configuration
-- **CMake presets**: Multiple build configurations (release, debug, vs-debug)
-- **Cross-platform**: Support for macOS and Windows builds
-- **Package targets**: Automated packaging for distribution
+## Reference
 
-### Future Recommendations
-1. **GitHub Actions**: Set up automated builds and tests
-2. **Automated formatting**: Enforce clang-format on pull requests
-3. **Static analysis**: Add tools like cppcheck or clang-static-analyzer
-4. **Unit testing**: Add proper unit testing framework (e.g., Unity, Catch2)
+### Test File Organization
 
-## Testing Strategies and Gaps
+**Source Structure**:
+```
+src/tests/
+├── test_model_dialog.c          # Model selection dialog test
+├── test_keycombination_dialog.c # Hotkey capture dialog test  
+└── test_download_dialog.c       # Download progress dialog test
+```
 
-### Current Testing Coverage
-- **UI Integration**: Dialog functionality testing
-- **Manual testing**: User interaction validation
-- **Platform integration**: macOS-specific features tested
+**Dialog Implementations**:
+```
+src/mac/dialogs/
+├── models_dialog.swift    # Model selection SwiftUI view
+├── hotkey_dialog.swift    # Key combination capture SwiftUI view
+└── download_dialog.swift  # Download progress SwiftUI view
+```
 
-### Testing Gaps
-1. **Unit tests**: No isolated unit tests for core functionality
-2. **Cross-platform**: No Windows-specific tests
-3. **Automated testing**: No CI/CD pipeline for automated testing
-4. **Audio processing**: No tests for transcription functionality
-5. **Performance testing**: No benchmarks or performance validation
-6. **Error handling**: Limited error condition testing
+### Build System Test Targets
 
-### Recommended Improvements
-1. **Add unit testing framework**: Implement Catch2 or similar for C++
-2. **Automated test execution**: Set up CI/CD pipeline
-3. **Cross-platform testing**: Add Windows test implementations
-4. **Audio pipeline testing**: Add tests for whisper.cpp integration
-5. **Mock dependencies**: Add mocking for external dependencies
-6. **Performance benchmarks**: Add performance regression testing
+**CMake Test Configuration** (`CMakeLists.txt:502-532`):
+- Test programs only built on Apple platforms (`if(APPLE)`)
+- Links platform library providing dialog functions
+- Links Cocoa and SwiftUI frameworks for native UI
+- Outputs to `${CMAKE_BINARY_DIR}/bin` directory
 
-## Dependencies and Integration
+**Target Dependencies**:
+```cmake
+target_link_libraries(test-model-dialog platform)
+target_link_libraries(test-keycombination-dialog platform "-framework SwiftUI") 
+target_link_libraries(test-download-dialog platform "-framework SwiftUI")
+```
 
-### External Dependencies
-- **whisper.cpp**: AI model integration (has its own test suite)
-- **Platform frameworks**: Cocoa, SwiftUI for macOS
-- **CMake**: Build system with preset configurations
+### Common Test Issues
 
-### Integration Testing
-- **whisper.cpp tests**: Located in `whisper.cpp/tests/` directory
-- **Language model testing**: Available through whisper.cpp test suite
-- **Audio processing**: Tested through whisper.cpp integration
+**Missing Frameworks** - SwiftUI framework required for newer dialog tests, older model dialog uses Cocoa only
 
-### Test Data
-- **Models**: Uses test models from whisper.cpp (`for-tests-*.bin`)
-- **Audio samples**: Uses sample audio files for integration testing
-- **Mock data**: Minimal mock data for dialog testing
+**App Initialization** - All tests must call `app_init()` before presenting dialogs
 
-## Summary
-
-The Yakety project currently employs a manual testing approach focused on GUI integration testing. While it includes code formatting standards and compiler warnings, it lacks automated testing infrastructure and comprehensive unit tests. The testing strategy is primarily focused on validating user-facing functionality through interactive dialog tests on macOS.
-
-Key areas for improvement include adding automated testing, cross-platform test coverage, and implementing a proper CI/CD pipeline for continuous quality assurance.
+**Keylogger Conflicts** - Key combination test initializes dummy keylogger to avoid conflicts with main app keylogger

@@ -1,101 +1,81 @@
-# Yakety - Project Overview
+<!-- Generated: 2025-06-14 22:35:00 UTC -->
 
-## Project Name and Purpose
+# Project Overview
 
-**Yakety** is a cross-platform voice-to-text input application that enables users to perform speech transcription for any application through a simple hotkey-based workflow. The core functionality is: hold a hotkey to record audio, release the hotkey to automatically transcribe the speech using AI, and paste the resulting text into the currently active application.
+Yakety is a cross-platform speech-to-text application that enables instant voice transcription through global keyboard shortcuts. Users can press and hold a configurable hotkey (FN key on macOS, Right Ctrl on Windows) to record audio, which is then transcribed locally using OpenAI's Whisper models and automatically pasted into the currently active application. The application operates both as a background tray/menu bar service and command-line tool, providing seamless voice-to-text functionality without requiring cloud services or internet connectivity.
 
-## Main Functionality
+Built with performance and privacy in mind, Yakety performs all transcription processing locally on the user's device using optimized Whisper.cpp implementations with platform-specific hardware acceleration (Metal on macOS, Vulkan on Windows). The application provides an intuitive model management system that automatically downloads and manages different Whisper model variants, from lightweight tiny models (~40MB) to high-accuracy large models (~800MB), allowing users to balance speed versus transcription quality based on their hardware capabilities and use cases.
 
-### Core Features
-- **Universal Voice Input**: Works with any application that accepts text input
-- **Hotkey-Driven Recording**: Press and hold a configurable hotkey to record, release to transcribe
-- **Automatic Text Insertion**: Transcribed text is automatically pasted into the active application
-- **System Tray Integration**: Runs as a background system tray/menubar application
-- **Cross-Platform Support**: Native implementations for macOS and Windows
+The architecture separates platform-specific implementations from core business logic, enabling consistent functionality across macOS and Windows while leveraging native system APIs for audio capture, clipboard operations, keyboard monitoring, and user interface components. This design approach ensures optimal performance and native user experience on each supported platform.
 
-### Key Workflows
-1. **Voice-to-Text**: Hold hotkey → Record audio → Release → AI transcription → Auto-paste text
-2. **Configuration**: System tray menu provides access to hotkey settings, model selection, and preferences
-3. **Model Management**: Supports custom Whisper models with automatic fallback to bundled models
-4. **Permission Handling**: Automated microphone and accessibility permission requests
+## Key Files
 
-## Key Technologies and Dependencies
+### Main Entry Points
+- **`src/main.c`** (lines 329-388): Primary application entry point containing `app_main()` function that handles initialization sequence, model loading, keylogger setup, and main event loop
+- **`src/app.h`** (lines 6-43): Cross-platform entry point macros that handle different build configurations (console vs tray app, Windows vs macOS)
 
-### Core Technologies
-- **Programming Languages**: C-style C++ with platform-specific implementations in Objective-C (macOS) and C (Windows)
-- **Build System**: CMake with advanced preset-based configuration using Ninja generator
-- **AI Engine**: OpenAI Whisper (whisper.cpp) for speech-to-text transcription
-- **Audio Processing**: miniaudio library for cross-platform audio recording (16kHz mono, optimized for Whisper)
+### Core Configuration
+- **`CMakeLists.txt`** (lines 1-535): Primary build configuration defining platform-specific source files, whisper.cpp integration, executable targets, and packaging rules
+- **`src/mac/Info.plist`** (lines 1-34): macOS app bundle configuration with permissions (NSMicrophoneUsageDescription on line 28), bundle identifier, and system requirements
+- **`src/preferences.c`** (lines 1-40): Configuration management system storing user settings, model paths, and hotkey combinations in platform-specific config directories
 
-### Platform-Specific Technologies
+## Technology Stack
 
-#### macOS
-- **UI Frameworks**: Cocoa, SwiftUI (for modern dialogs)
-- **System Integration**: NSStatusItem (menu bar), CGEventTap (keyboard monitoring), NSPasteboard (clipboard)
-- **GPU Acceleration**: Metal acceleration with CoreML fallback
-- **Architecture**: Apple Silicon (ARM64) optimized builds
+### Core Language and Build System
+- **C99/C++11**: Primary implementation languages (CMakeLists.txt lines 6-9)
+- **Swift 6**: Modern UI dialogs on macOS (CMakeLists.txt lines 55-57: `hotkey_dialog.swift`, `models_dialog.swift`, `download_dialog.swift`)
+- **CMake 3.20+**: Cross-platform build system with custom modules (`cmake/BuildWhisper.cmake`, `cmake/PlatformSetup.cmake`)
 
-#### Windows  
-- **System Integration**: System tray, low-level keyboard hooks, Windows clipboard API
-- **GPU Acceleration**: Vulkan acceleration with CPU fallback
-- **Build Environment**: Visual Studio 2019+ with WSL development support
+### Audio and Transcription
+- **Whisper.cpp**: Local speech recognition engine (CMakeLists.txt lines 28-261, integrated as external project)
+- **miniaudio**: Cross-platform audio capture library (`src/audio.c` lines 1-3, `src/miniaudio.h`)
+- **Hardware Acceleration**: Metal (macOS) and Vulkan (Windows) for GPU-accelerated inference (CMakeLists.txt lines 232-250)
 
-### Dependencies
-- **whisper.cpp**: OpenAI Whisper implementation in C++ with GPU acceleration support
-- **ggml**: Machine learning tensor library (part of whisper.cpp)
-- **miniaudio**: Cross-platform audio I/O library
-- **Platform Libraries**: Foundation/Cocoa (macOS), Win32 API (Windows)
+### Platform Integration Examples
+```c
+// Cross-platform audio recording (src/audio.c lines 38-50)
+void data_callback(ma_device *pDevice, void *pOutput, const void *pInput, ma_uint32 frameCount) {
+    AudioRecorder *recorder = (AudioRecorder *) pDevice->pUserData;
+    const float *input = (const float *) pInput;
+    size_t samples = frameCount * WHISPER_CHANNELS; // 16kHz mono
+}
 
-## Target Platforms
-
-### Supported Platforms
-- **macOS**: 14.0+ (Sonoma and later)
-  - Native Apple Silicon (ARM64) builds
-  - Intel x86_64 support available
-  - Xcode Command Line Tools required for development
-
-- **Windows**: Windows 10+ 
-  - x86_64 architecture
-  - Visual Studio 2019+ for development
-  - WSL integration for remote development from macOS
-
-### Build Requirements
-- **Cross-Platform**: CMake 3.20+, Ninja build system
-- **macOS**: Xcode Command Line Tools, Metal support
-- **Windows**: Visual Studio 2019+, Windows SDK, optional Vulkan SDK
-
-## Architecture Highlights
-
-### Modular Design
-- **Platform Abstraction**: Clean separation between platform-specific code (`src/mac/`, `src/windows/`) and business logic
-- **Module-Based Architecture**: Well-defined interfaces for logging, clipboard, overlay, dialog, menu, keylogger, and app lifecycle
-- **Single Entry Point**: Unified `main.c` for both CLI and GUI applications using `APP_ENTRY_POINT` macro
-
-### Advanced Features
-- **GPU Acceleration**: Automatic Metal (macOS) and Vulkan (Windows) acceleration with CPU fallbacks
-- **Thread Safety**: Mutex-based protection for transcription context and atomic operations for app state
-- **Blocking Async Pattern**: Revolutionary approach combining synchronous code simplicity with UI responsiveness through event pumping
-- **Configuration Management**: INI-based settings with platform-appropriate storage locations
-- **Remote Development**: WSL-based infrastructure for cross-platform development
-
-### Distribution
-- **macOS**: App bundles (.app) and DMG installers with code signing
-- **Windows**: Standalone executables with ZIP distribution packages
-- **CLI Tools**: Additional command-line utilities (`yakety-cli`, `recorder`, `transcribe`) for advanced usage
-
-## Project Structure
-
-```
-yakety/
-├── src/                    # Source code
-│   ├── *.{c,h}            # Platform-agnostic business logic
-│   ├── mac/               # macOS-specific implementations  
-│   └── windows/           # Windows-specific implementations
-├── whisper.cpp/           # AI transcription engine (submodule)
-├── assets/                # Icons and resources
-├── cmake/                 # Build system configuration
-├── docs/                  # Documentation
-└── wsl/                   # Remote development infrastructure
+// Platform-specific implementations directory structure
+src/mac/          # macOS: Objective-C + Swift implementations
+src/windows/      # Windows: Win32 C implementations
 ```
 
-This architecture enables Yakety to provide a seamless voice-to-text experience across platforms while maintaining clean, maintainable code through its modular design and sophisticated build system.
+### Model Management
+- **Whisper Model Variants**: From tiny (40MB) to large-v3-turbo (800MB) defined in `src/model_definitions.h` lines 15-30
+- **Automatic Downloads**: HuggingFace integration for model acquisition via `src/models.c` unified loading system
+
+## Platform Support
+
+### macOS Requirements
+- **Minimum Version**: macOS 14.0 (Sonoma) for Swift 6 compatibility (CMakeLists.txt line 22)
+- **Architecture**: Apple Silicon (arm64) only (CMakeLists.txt line 20)
+- **Permissions**: Microphone access and Accessibility permissions required (`src/mac/Info.plist` line 28, `src/main.c` lines 78-117)
+- **Bundle Resources**: App icon, menubar icons, and Whisper models embedded in .app bundle (CMakeLists.txt lines 159-183)
+
+### Windows Requirements  
+- **Build Tools**: Visual Studio or Ninja generator support (CMakeLists.txt lines 215-222)
+- **GPU Acceleration**: Optional Vulkan support for enhanced performance (CMakeLists.txt lines 241-249)
+- **Distribution**: Portable executable with resource files (`src/windows/yakety.rc`)
+
+### Build Targets and Outputs
+```cmake
+# Executable variants (CMakeLists.txt lines 113-196)
+yakety-cli      # Command-line interface
+yakety-app      # GUI tray application  
+recorder        # Audio capture utility
+transcribe      # Batch transcription tool
+
+# Distribution packages (CMakeLists.txt lines 359-471)
+package-macos   # DMG and ZIP for macOS
+package-windows # ZIP distribution for Windows
+```
+
+### Development and Testing
+- **Test Programs**: Dialog testing utilities for macOS (CMakeLists.txt lines 502-532)
+- **Debug Configuration**: Comprehensive logging system with timing metrics (`src/logging.h`, `src/main.c` lines 255-283)
+- **Code Signing**: Integrated macOS code signing pipeline (CMakeLists.txt line 186)

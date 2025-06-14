@@ -1,212 +1,87 @@
-# Yakety Architecture Documentation
+# Yakety Architecture
 
-This document provides a comprehensive overview of the Yakety application's architecture, including its directory structure, key modules, component interactions, and platform abstraction approach.
+<!-- Generated: 2025-06-14 21:06:06 UTC -->
 
 ## Overview
 
-Yakety is a cross-platform voice-to-text application that uses push-to-talk functionality to record audio, transcribe it using the Whisper.cpp library, and paste the resulting text into the active application. The application is built using C-style C++ with platform-specific native APIs for optimal performance and integration.
+Yakety is a cross-platform voice-to-text application built with a modular architecture using C/C++ for performance-critical components and platform-specific APIs for system integration. The application follows a singleton pattern for core components with clear separation between business logic and platform-specific implementations.
 
-## Directory Structure
+The system operates as both a CLI tool and tray application, using a unified entry point that adapts based on build configuration. Core functionality centers around real-time audio capture, Whisper-powered speech recognition, and seamless clipboard integration for instant text pasting.
 
-```
-yakety/
-├── src/                        # Source code
-│   ├── *.{c,h,cpp}            # Core business logic (platform-agnostic)
-│   ├── mac/                   # macOS-specific implementations
-│   │   ├── *.{m,h}           # Objective-C implementations
-│   │   └── dialogs/          # SwiftUI dialog implementations
-│   │       └── *.swift       # SwiftUI components
-│   ├── windows/               # Windows-specific implementations
-│   │   ├── *.{c,h}           # C implementations
-│   │   ├── dialogs/          # Windows dialog implementations
-│   │   └── yakety.rc         # Windows resources
-│   └── tests/                 # Test programs
-├── cmake/                     # CMake helper modules
-├── assets/                    # Application assets (icons, etc.)
-├── whisper.cpp/              # Whisper.cpp submodule
-├── build/                    # Build output directory
-└── docs/                     # Documentation
-```
+## Component Map
 
-## Architecture Layers
+### Core Application Layer
+- **Main Entry Point**: `src/main.c` (lines 329-390) - Unified entry for CLI/tray modes
+- **Application Framework**: `src/app.h` - Platform abstraction for app lifecycle
+- **Business Logic**: Audio capture → Transcription → Clipboard integration
 
-### 1. Application Layer
-- **Entry Point**: `src/main.c` - Contains the main application logic and initialization
-- **App Framework**: `src/app.h` - Provides platform-agnostic application lifecycle management
-- **Build Configuration**: Multi-target CMake setup supporting CLI and GUI variants
+### Platform Abstraction Layer
+- **macOS Implementation**: `src/mac/` - Objective-C/Swift platform code
+- **Windows Implementation**: `src/windows/` - Win32 API platform code
+- **Platform Library**: Built as static library via CMake (lines 46-85 in `CMakeLists.txt`)
 
-### 2. Core Business Logic (Platform-Agnostic)
-Located in `src/*.{c,h,cpp}`, these modules handle the core functionality:
+### Audio Processing Pipeline
+- **Audio Capture**: `src/audio.c` - MiniAudio-based recorder (16kHz mono)
+- **Speech Recognition**: `src/transcription.cpp` - Whisper.cpp integration
+- **Model Management**: `src/models.c` - Handles model loading with fallback
 
-#### Audio Processing
-- **Module**: `src/audio.{c,h}`
-- **Responsibility**: Audio recording and management using miniaudio
-- **Features**: Real-time audio capture, sample rate conversion, buffer management
+### System Integration
+- **Keyboard Monitoring**: `src/keylogger.h` - Hotkey detection (FN/Right Ctrl)
+- **Clipboard Operations**: `src/clipboard.h` - Copy/paste functionality
+- **System Menu**: `src/menu.h` - Tray menu management
+- **Visual Feedback**: `src/overlay.h` - Recording/transcription overlays
 
-#### Transcription Engine
-- **Module**: `src/transcription.{cpp,h}`
-- **Responsibility**: Whisper.cpp integration for speech-to-text conversion
-- **Features**: Model loading, audio processing, text cleanup, language support
-- **Note**: Uses C++ for Whisper.cpp compatibility but maintains C-style interface
+## Key Files
 
-#### Model Management
-- **Module**: `src/models.{c,h}` + `src/model_definitions.h`
-- **Responsibility**: Whisper model discovery, loading, and management
-- **Features**: Bundled model support, downloadable model system, automatic fallbacks
+### Core Headers
+- **`src/app.h`** (lines 6-43): Cross-platform entry point macros, handles Windows GUI vs console mode
+- **`src/audio.h`** (lines 7-37): Audio recorder singleton API with fixed Whisper configuration (16kHz mono)
+- **`src/transcription.h`** (lines 8-15): Whisper.cpp wrapper with language configuration
+- **`src/keylogger.h`** (lines 17-20): Key combination structure supporting up to 4 keys for complex hotkeys
 
-#### Keyboard Monitoring
-- **Module**: `src/keylogger.{h}` (platform implementations vary)
-- **Responsibility**: Global hotkey detection and management
-- **Features**: Customizable key combinations, permission handling, press/release events
+### Platform Implementations
+- **`src/mac/keylogger.c`** (lines 16-54): macOS accessibility API integration with CGEvent filtering
+- **`src/mac/app.m`**: Cocoa application lifecycle and menu bar integration
+- **`src/mac/dialogs/`**: SwiftUI dialog implementations for model selection and settings
+- **`src/windows/keylogger.c`**: Win32 low-level keyboard hook implementation
 
-#### Menu System
-- **Module**: `src/menu.{c,h}`
-- **Responsibility**: System tray/menu bar integration
-- **Features**: Dynamic menu creation, platform-specific implementations
+### Business Logic
+- **`src/audio.c`** (lines 14-32): AudioRecorder struct with dynamic buffer management and file output
+- **`src/transcription.cpp`** (lines 17-26): Thread-safe Whisper context with mutex protection
+- **`src/models.c`** (lines 24-88): Model loading with automatic fallback to base model on failure
+- **`src/preferences.c`**: JSON-based configuration with key combination serialization
 
-#### Configuration Management
-- **Module**: `src/preferences.{c,h}`
-- **Responsibility**: Application settings persistence
-- **Features**: Cross-platform config file management, preference validation
+## Data Flow
 
-### 3. Platform Abstraction Layer
-Each platform implements the same interfaces defined in the core headers:
+### Recording Flow
+1. **Hotkey Detection**: `src/mac/keylogger.c:75-80` - Key press triggers `on_key_press()`
+2. **Audio Start**: `src/main.c:224-229` - Calls `audio_recorder_start()` with overlay feedback
+3. **Buffer Capture**: `src/audio.c:38-80` - MiniAudio callback writes to dynamic buffer
+4. **Audio Stop**: `src/main.c:233-250` - Key release triggers `on_key_release()` with duration check
 
-#### macOS Implementation (`src/mac/`)
-- **Language**: Objective-C for system integration, C for core logic
-- **UI Framework**: SwiftUI for modern dialog interfaces
-- **Key Files**:
-  - `app.m` - NSApplication lifecycle management
-  - `dialog.m` - Dialog coordination between Objective-C and SwiftUI
-  - `dialogs/*.swift` - SwiftUI dialog implementations
-  - `keylogger.c` - macOS accessibility API integration
-  - `menu.m` - NSStatusBar menu implementation
-
-#### Windows Implementation (`src/windows/`)
-- **Language**: C with Win32 APIs
-- **UI Framework**: Native Win32 dialogs
-- **Key Files**:
-  - `app.c` - Windows message loop and lifecycle
-  - `dialog.c` - Win32 dialog implementations
-  - `keylogger.c` - Windows low-level keyboard hooks
-  - `menu.c` - System tray implementation
-
-#### Cross-Platform Utilities (`src/utils.h`)
-- **Async Operations**: Thread management and background task execution
-- **File System**: Cross-platform file operations and path handling
-- **Threading**: Mutex operations and atomic access
-- **Platform Integration**: Launch-at-login, accessibility settings
-
-### 4. User Interface Layer
-
-#### Dialog System
-- **Unified Interface**: `src/dialog.h` defines common dialog functions
-- **Platform-Specific Implementation**: 
-  - macOS: SwiftUI-based modern dialogs with native look and feel
-  - Windows: Win32 native dialogs
-- **Dialog Types**:
-  - Model selection and download
-  - Hotkey configuration
-  - Permission requests
-  - Error/info messages
-
-#### System Integration
-- **Overlay System**: Real-time status display during recording/processing
-- **Clipboard Integration**: Automated text pasting into active applications
-- **System Tray**: Background operation with menu access
-
-## Component Interactions
-
-### Startup Flow
-1. **App Initialization** (`main.c` → `app.h`)
-   - Platform detection and app framework setup
-   - Preference loading and validation
-   - Component initialization in dependency order
-
-2. **Model Loading** (`models.c`)
-   - Bundled model discovery
-   - Downloaded model validation
-   - Fallback mechanisms for missing models
-   - Dialog presentation for model selection if needed
-
-3. **System Integration Setup**
-   - Menu system creation (tray apps only)
-   - Keyboard monitor initialization
-   - Permission handling (macOS accessibility)
-   - Audio system initialization
-
-### Runtime Operation Flow
-1. **Hotkey Detection** (Platform-specific keylogger)
-2. **Audio Recording** (`audio.c` with miniaudio)
-3. **Transcription Processing** (`transcription.cpp` with Whisper.cpp)
-4. **Text Processing** (Cleanup and formatting)
-5. **Clipboard Operations** (Platform-specific clipboard + paste)
-
-### Dialog System Architecture
-```
-dialog.h (Common Interface)
-    ├── mac/dialog.m (Coordinator)
-    │   └── mac/dialogs/*.swift (SwiftUI Implementation)
-    └── windows/dialog.c (Win32 Implementation)
-```
-
-## Platform Abstraction Approach
-
-### Design Philosophy
-- **C-Style C++**: Core logic written in C with C++ only where required (Whisper.cpp integration)
-- **Platform-Specific UI**: Native look and feel using platform frameworks
-- **Unified Interfaces**: Common header definitions with platform-specific implementations
-- **Minimal Dependencies**: Prefer platform APIs over third-party libraries
-
-### Build System
-- **CMake Configuration**: Multi-preset system supporting different build types
-- **Platform Libraries**: Static `platform` library containing all platform-specific code
-- **Multi-Target**: Separate CLI and GUI executables from same codebase
-- **Code Signing**: Automated signing and packaging for distribution
-
-### Threading Model
-- **Main Thread**: UI operations and event handling
-- **Background Threads**: Audio processing, transcription, model operations
-- **Thread Safety**: Mutex-based synchronization and atomic operations
-- **Responsive UI**: Non-blocking async operations with callback mechanisms
-
-## Key Design Decisions
-
-### Language Choices
-- **Core Logic**: C for simplicity, performance, and cross-platform compatibility
-- **macOS UI**: SwiftUI for modern native dialogs, Objective-C for system integration
-- **Windows UI**: Win32 APIs for lightweight native integration
-- **Whisper Integration**: C++ wrapper maintaining C interface
-
-### Model Management Strategy
-- **Bundled Model**: Base model included for immediate functionality
-- **Downloadable Models**: On-demand model acquisition for advanced features
-- **Unified Loading**: Single `models_load()` function handles all model scenarios
-- **Graceful Fallbacks**: Progressive fallback from custom → bundled → error dialogs
+### Transcription Flow
+1. **Sample Extraction**: `src/main.c:177-181` - `audio_recorder_get_samples()` returns float array
+2. **Whisper Processing**: `src/main.c:187-189` - `transcription_process()` handles speech-to-text
+3. **Text Cleanup**: `src/transcription.cpp` - Filters output and adds trailing space for pasting
+4. **Clipboard Integration**: `src/main.c:195-197` - `clipboard_copy()` + `clipboard_paste()`
 
 ### Platform Integration
-- **System Tray**: Background operation without window management
-- **Global Hotkeys**: System-wide keyboard monitoring with permission handling
-- **Accessibility**: Proper integration with platform accessibility systems
-- **Launch Integration**: System startup integration with user control
+- **macOS**: Uses Cocoa for menu bar, SwiftUI for dialogs, Accessibility API for keyboard monitoring
+- **Windows**: Win32 system tray, native dialogs, low-level keyboard hooks
+- **Whisper.cpp**: Integrated as external dependency with Flash Attention and GPU acceleration
 
-## Testing Strategy
+### Model Management
+- **Initialization**: `src/models.c:24-41` calls `utils_get_model_path()` → `transcription_init()`
+- **Fallback Strategy**: `src/models.c:43-89` removes corrupted models, falls back to bundled base model
+- **Path Resolution**: Checks preferences → bundled resources → download fallback
 
-The application includes focused test programs for critical components:
-- `test_model_dialog.c` - Model selection dialog testing
-- `test_keycombination_dialog.c` - Hotkey configuration testing  
-- `test_download_dialog.c` - Model download dialog testing
+### Event Loop
+- **CLI Mode**: `src/main.c:383` - Blocking `app_run()` with signal handlers
+- **Tray Mode**: Platform-specific message loops in `src/mac/app.m` and `src/windows/app.c`
+- **Threading**: Audio callback on separate thread, transcription on main thread with mutex protection
 
-## Distribution Architecture
-
-### Build Variants
-- **CLI Tools**: `yakety-cli`, `recorder`, `transcribe` - Command-line utilities
-- **GUI Applications**: `yakety-app` (Yakety.exe/Yakety.app) - System tray applications
-- **Platform Packages**: Automated DMG (macOS) and ZIP (Windows) creation
-
-### Deployment Strategy
-- **Self-Contained**: All dependencies bundled including Whisper models
-- **Code Signing**: Proper platform certification for security
-- **Automated Distribution**: Build and upload pipeline for releases
-
-This architecture provides a robust, maintainable, and platform-appropriate foundation for the Yakety voice-to-text application while maintaining performance and native integration on each supported platform.
+### Build System
+- **CMake Configuration**: `CMakeLists.txt:1-535` handles cross-platform builds, Whisper.cpp integration
+- **Platform Detection**: Lines 18-23 set macOS deployment target and architecture
+- **Resource Bundling**: Lines 159-183 embed icons and models in app bundles
+- **Code Signing**: macOS app bundles use automatic signing for distribution

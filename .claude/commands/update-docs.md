@@ -1,101 +1,198 @@
 # Update Documentation
 
-You will generate comprehensive documentation to enable humans and LLMs to fully understand and work with this project.
+You will generate LLM-optimized documentation with concrete file references and flexible formatting.
 
 ## Your Task
 
 Create documentation that allows humans and LLMs to:
 - **Understand project purpose** - what the project does and why
 - **Get architecture overview** - how the system is organized
-- **Build on all platforms** - step-by-step build instructions
-- **Add features/subsystems** - following established patterns and conventions
-- **Debug applications** - troubleshoot issues at any level
+- **Build on all platforms** - build instructions with file references
+- **Add features/subsystems** - following established patterns with examples
+- **Debug applications** - troubleshoot issues with specific file locations
 - **Test and add tests** - run existing tests and create new ones
 - **Deploy and distribute** - package and deploy the software
+
+## Required Documentation Structure
+
+Each document MUST include:
+1. **Timestamp Header** - Hidden comment with last update timestamp
+2. **Brief Overview** (2-3 paragraphs max) 
+3. **Key Files & Examples** - Concrete file references for each major topic
+4. **Common Workflows** - Practical guidance with file locations
+5. **Reference Information** - Quick lookup tables with file paths
+
+## Timestamp Format
+
+Each generated file MUST start with:
+```
+<!-- Generated: YYYY-MM-DD HH:MM:SS UTC -->
+```
 
 ## Process
 
 You will:
-1. **Analyze the codebase in parallel** across 7 key areas of interest
-2. **Create or update intermediate docs** in `docs/*.md` 
-3. **Synthesize final documentation** into a minimal README.md
-4. **Preserve all detailed files** for comprehensive reference
+1. **Analyze the codebase systematically** across 7 key areas (merging development+patterns)
+2. **Create or update docs** in `docs/*.md` with concrete file references
+3. **Synthesize final documentation** into a minimal, LLM-friendly README.md
+4. **Eliminate all duplication** across files
 
-## Instructions
+## Analysis Methodology
 
-Analyze the codebase to create comprehensive documentation. For each area, check if an existing `docs/area-of-interest.md` file exists. If it exists, read it and update/improve the content based on the current codebase state. If it doesn't exist, create it from scratch. Always ensure the `docs/` directory exists before writing files.
+For each area, agents should:
+1. **Examine key files**: Look for build configs, test files, deployment scripts, main source files
+2. **Extract file references**: Note specific files, line numbers, and examples
+3. **Identify patterns**: Find repeated structures, naming conventions, common workflows
+4. **Make content LLM-friendly**: Token-efficient, reference-heavy, practical examples
 
-Issue the following Task calls in parallel to speed up the process:
+## Specific File Requirements
+
+Issue the following Task calls in parallel:
 
 **Project Overview** (`docs/project-overview.md`):
-- Check if `docs/project-overview.md` exists and read it if present
-- Analyze the project to understand purpose, functionality, and key technologies
-- Look at root files, source structure, dependencies, and external integrations
-- Create new content or update/improve existing content with current findings
-- Output: Project name, purpose, main functionality, key technologies, target platforms
+STRUCTURE:
+- Overview: What the project is, core purpose, key value proposition (2-3 paragraphs)
+- Key Files: Main entry points and core configuration files
+- Technology Stack: Core technologies with specific file examples
+- Platform Support: Requirements with platform-specific file locations
 
-**Architecture Analysis** (`docs/architecture.md`):
-- Check if `docs/architecture.md` exists and read it if present
-- Analyze source code architecture and organization
-- Examine directory structure, key modules, component interactions, platform-specific code
-- Create new content or update/improve existing content with current architecture state
-- Output: Directory structure, key modules, component interactions, platform abstraction
+**Architecture** (`docs/architecture.md`):
+STRUCTURE:
+- Overview: High-level system organization (2-3 paragraphs)
+- Component Map: Major components with their source file locations
+- Key Files: Core headers and implementations with brief descriptions
+- Data Flow: How information flows with specific function/file references
 
 **Build System** (`docs/build-system.md`):
-- Check if `docs/build-system.md` exists and read it if present
-- Analyze build configuration files (CMakeLists.txt, Makefile, package.json, Cargo.toml, etc.), build presets, dependencies, platform-specific requirements
-- Evaluate required system tools and their installation requirements (compilers, build tools, package managers, etc.)
-- Look for existing installation scripts or setup procedures
-- Create new content or update/improve existing content with current build configuration
-- Output: Build system overview, presets, dependencies, PLUS step-by-step instructions for: setting up build environment, building on each platform, troubleshooting common build issues
+STRUCTURE:
+- Overview: Build system with file references to main build configuration
+- Build Workflows: Common tasks with specific commands and config files
+- Platform Setup: Platform-specific requirements with file paths
+- Reference: Build targets, presets, and troubleshooting with file locations
 
-**Testing and Quality** (`docs/testing.md`):
-- Check if `docs/testing.md` exists and read it if present
-- Analyze test files, testing framework, code quality tools, CI/CD configuration
-- Examine existing test patterns and conventions for guidance on adding new tests
-- Create new content or update/improve existing content with current testing setup
-- Output: Testing framework overview, test organization, PLUS step-by-step instructions for: running tests, adding new tests, debugging test failures, using code quality tools
+**Testing** (`docs/testing.md`):
+STRUCTURE:
+- Overview: Testing approach with test file locations
+- Test Types: Different test categories with specific file examples
+- Running Tests: Commands with file paths and expected outputs
+- Reference: Test file organization and build system test targets
 
-**Development Workflow** (`docs/development.md`):
-- Check if `docs/development.md` exists and read it if present
-- Analyze development conventions, code style, Git workflow, development environment setup
-- Examine debugging configurations, IDE setups, logging patterns, and troubleshooting approaches
-- Look for development scripts, automation, and productivity tools
-- Create new content or update/improve existing content with current conventions and practices
-- Output: Code style overview, development environment, PLUS step-by-step instructions for: setting up development environment, debugging applications/features, using development tools, following Git workflow
+**Development** (`docs/development.md`):
+STRUCTURE:
+- Overview: Development environment, code style, patterns (merge with old patterns.md if exists)
+- Code Style: Conventions with specific file examples (show actual code from codebase)
+- Common Patterns: Implementation patterns with file references and examples from the codebase
+- Workflows: Development tasks with concrete file locations and examples
+- Reference: File organization, naming conventions, common issues with specific files
 
-**Deployment and Distribution** (`docs/deployment.md`):
-- Check if `docs/deployment.md` exists and read it if present
-- Analyze packaging, distribution, installation procedures, platform-specific deployment
-- Examine server components, containerization, cloud deployment, infrastructure requirements
-- Look for deployment scripts, configuration management, monitoring, and operational procedures
-- Create new content or update/improve existing content with current deployment approach
-- Output: Packaging overview, deployment architecture, PLUS step-by-step instructions for: packaging applications, deploying to different environments, configuring infrastructure, troubleshooting deployment issues
+**Deployment** (`docs/deployment.md`):
+STRUCTURE:
+- Overview: Packaging and distribution with script references
+- Package Types: Different packages with build targets and output locations
+- Platform Deployment: Platform-specific packaging with file paths
+- Reference: Deployment scripts, output locations, server configurations
 
-**Implementation Patterns** (`docs/patterns.md`):
-- Check if `docs/patterns.md` exists and read it if present
-- Analyze common implementation patterns in the codebase (e.g., async/concurrency patterns, abstraction layers, factory patterns, observer patterns, state management)
-- Examine recurring code structures, design patterns, error handling approaches, resource management
-- Look for project-specific patterns like UI abstractions, data flow patterns, plugin architectures, or domain-specific abstractions
-- Identify patterns for adding new features/subsystems that follow established conventions
-- Create new content or update/improve existing content with current implementation patterns
-- Output: Design patterns overview, architectural patterns, PLUS step-by-step instructions for: adding new features following established patterns, creating new subsystems, extending existing components, following coding conventions
+**Files Catalog** (`docs/files.md`):
+STRUCTURE:
+- Overview: Comprehensive file catalog with descriptions and relationships (2-3 paragraphs)
+- Core Source Files: Main application logic with purpose descriptions
+- Platform Implementation: Platform-specific code with interface mappings
+- Build System: Build configuration and helper modules
+- Configuration: Assets, scripts, configs - Supporting files and their roles
+- Reference: File organization patterns, naming conventions, dependency relationships
 
-After all tasks complete, read all `docs/*.md` files and synthesize them into:
-**README.md** - Create a minimal quick-start guide with just enough info to get up and running. Each section should have bare minimum content plus explicit links to detailed docs (e.g., "For detailed build instructions, see [docs/build-system.md](docs/build-system.md)"). Keep it super short and concise - just actionable overview with clear navigation to the comprehensive docs. Create from scratch or completely overwrite existing README.md.
+## Critical Requirements
 
-**Final Cleanup Pass**: Perform a final cleanup of each generated `.md` file to:
-- Merge any duplicated content
-- Remove information that doesn't belong in their specific area of interest
-- Make content minimal yet comprehensive
-- Ensure clarity and actionability
+### LLM-OPTIMIZED FORMAT
+- **Token efficient**: Avoid redundant explanations, focus on essential information
+- **Concrete file references**: Always include specific file paths, line numbers when helpful
+- **Flexible formatting**: Use subsections, code blocks, examples instead of rigid step-by-step
+- **Pattern examples**: Show actual code from the codebase, not generic examples
 
-## Requirements
+### NO DUPLICATION  
+- Each piece of information appears in EXACTLY ONE file
+- Build information only in build-system.md
+- Code style and patterns only in development.md
+- Deployment information only in deployment.md
+- Cross-references using: "See [docs/filename.md](docs/filename.md)"
 
-- Create `docs/` directory if it doesn't exist
-- Handle both creating new files and updating existing ones
-- Make README.md concise yet comprehensive enough for immediate understanding
-- Structure for quick reference with clear sections and code examples  
-- Ensure LLM-friendly organization and human readability
-- Focus on actionable information for both humans and AI assistants
-- Create or completely overwrite README.md without confirmation
+### FILE REFERENCE FORMAT
+Always include specific file references:
+```
+**Core System** - Core implementation in src/core.h (lines 15-45), platform backends in src/platform/
+
+**Build Configuration** - Main build file (lines 67-89), configuration files
+
+**Module Management** - Interface in src/module.h, implementation in src/module.c (key_function at line 134)
+```
+
+### PRACTICAL EXAMPLES
+Use actual code from the codebase:
+```c
+// From src/example.h:23-27
+typedef struct {
+    bool active;
+    void *data;
+    int count;
+} ExampleState;
+```
+
+## Final Steps
+
+After all tasks complete:
+
+1. **Read all `docs/*.md` files** and create README.md with:
+   - Project description (2-3 sentences max)
+   - Key entry points and core configuration files
+   - Quick build commands
+   - Documentation links with brief descriptions of what LLMs will find useful
+   - Keep it under 50 lines total
+
+2. **Duplication check**: Scan all files and remove any duplicated information
+
+3. **File reference check**: Ensure all file paths are accurate and helpful
+
+## Agent Instructions
+
+Each agent must:
+1. **Read existing file** if it exists to understand current content
+2. **Analyze relevant codebase files** systematically
+3. **Extract specific file references** throughout analysis:
+   - Note important headers, source files, configuration files
+   - Include line numbers for key functions/sections when helpful
+   - Reference actual code examples from the codebase
+4. **Create LLM-friendly content**:
+   - Token-efficient writing (no redundant explanations)
+   - Concrete file paths and examples throughout
+   - Flexible formatting (subsections, code blocks, practical guidance)
+   - Focus on what LLMs need to understand and work with the code
+5. **Include practical workflows** with specific file references
+6. **Create reference sections** with file locations and line numbers
+7. **Update timestamp** at the top with current UTC time
+8. **Read generated file** and revise for accuracy and completeness
+
+**Success criteria**: Each file should be a practical reference that helps LLMs quickly understand the codebase and find the right files for specific tasks.
+
+**Special note for development.md**: Merge content from both old development.md and patterns.md (if they exist) into a single comprehensive development guide with implementation patterns.
+
+The coordinating agent must:
+1. Wait for all agents to complete
+2. Read all generated files  
+3. Remove any duplication found
+4. Create a minimal, LLM-optimized README.md with key file references
+5. **Update README.md timestamp** with current UTC time
+6. Delete docs/patterns.md if it exists since it's merged into development.md
+
+## Files Agent Instructions
+
+The Files agent should create a minimal, token-efficient file catalog:
+
+1. **Discover files**: Use Glob and LS to find all source files, configs, and build files
+2. **Group by function**: Organize files into logical categories (core, platform, build, tests, config)
+3. **Brief descriptions**: One line per significant file describing its primary purpose
+4. **Key entry points**: Highlight main files, build configs, and important headers
+5. **Dependencies**: Note major relationships between file groups
+
+**Format**: Concise lists with file paths and single-sentence descriptions. Focus on helping LLMs quickly locate functionality, not comprehensive documentation.
+
+**Success criteria**: LLMs can quickly find "where is the main entry point", "which files handle X", "what are the key headers" without reading detailed descriptions.
