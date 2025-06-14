@@ -45,5 +45,5 @@ test_*.wav
 *.m4a
 
 # Claude Code
-.claude
+.claude/settings.local.json
 nul
