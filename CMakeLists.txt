@@ -534,6 +534,7 @@ if(APPLE)
         RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin
         RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin
     )
+endif()
 
 message(STATUS "Package targets available: package, package-cli-${CMAKE_SYSTEM_NAME}, package-app-${CMAKE_SYSTEM_NAME}")
 message(STATUS "Upload target available: upload (packages and uploads to server)")
