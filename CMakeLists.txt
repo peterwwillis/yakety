@@ -268,6 +268,14 @@ foreach(target yakety-cli yakety-app transcribe)
     target_compile_definitions(${target} PRIVATE WHISPER_AVAILABLE)
 endforeach()
 
+# Find and link OpenMP if available (needed for whisper.cpp)
+find_package(OpenMP)
+if(OpenMP_FOUND)
+    foreach(target yakety-cli yakety-app transcribe)
+        target_link_libraries(${target} PRIVATE OpenMP::OpenMP_CXX)
+    endforeach()
+endif()
+
 # Link Metal frameworks for macOS
 if(APPLE AND METAL_FRAMEWORKS)
     foreach(target yakety-cli yakety-app transcribe)
