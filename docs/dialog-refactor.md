@@ -196,16 +196,30 @@ typedef struct {
 - Download dialog: 400x200px with progress bar and status text
 - Hotkey dialog: 400x300px with capture area and instructions
 
-## Next Steps
+## Implementation Tasks
 
-1. **Create base framework** (`dialog_framework.h/c`)
-2. **Extract common utilities** (`dialog_utils.c`)
-3. **Build component library** (`dialog_components.h/c`)
-4. **Implement models dialog** using framework
-5. **Implement download dialog** using framework
-6. **Migrate existing dialogs** to new framework
-7. **Test theme switching** and DPI scaling
-8. **Verify visual parity** with macOS implementation
+### High Priority (Foundation)
+- [ ] **Task 1**: Create dialog framework foundation (dialog_framework.h/c with base dialog system)
+- [ ] **Task 2**: Extract common utilities into dialog_utils.c (DPI, theme, string conversion)
+
+### Medium Priority (Components)
+- [ ] **Task 3**: Build header component with app icon + title layout
+- [ ] **Task 4**: Create themed button component with hover states
+- [ ] **Task 5**: Implement scrollable list component for models dialog
+- [ ] **Task 6**: Create progress bar component for download dialog
+
+### Medium Priority (Dialog Implementation)
+- [ ] **Task 7**: Implement models dialog using framework components
+- [ ] **Task 8**: Implement download dialog using framework components
+
+### Low Priority (Migration & Testing)
+- [ ] **Task 9**: Migrate existing keycapture dialog to new framework
+- [ ] **Task 10**: Test theme switching and DPI scaling across all dialogs
+
+### Implementation Strategy
+1. **Phase 1**: Complete tasks 1-2 (foundation framework and utilities)
+2. **Phase 2**: Complete tasks 3-6 (reusable UI components)
+3. **Phase 3**: Complete tasks 7-10 (dialog implementation and migration)
 
 ## Success Criteria
 
