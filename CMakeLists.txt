@@ -38,6 +38,7 @@ download_whisper_model()
 # Setup platform libraries
 setup_platform_libs()
 
+
 # Check if whisper.cpp is available
 set(WHISPER_DIR "${CMAKE_SOURCE_DIR}/whisper.cpp")
 set(WHISPER_BUILD_DIR "${WHISPER_DIR}/build")
@@ -533,53 +534,6 @@ if(APPLE)
         RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin
         RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin
     )
-elseif(WIN32)
-    # Check for WinUI3 NuGet packages
-    set(WINDOWSAPPSDK_PACKAGE "${CMAKE_SOURCE_DIR}/Microsoft.WindowsAppSDK.1.7.250606001")
-    set(CPPWINRT_PACKAGE "${CMAKE_SOURCE_DIR}/Microsoft.Windows.CppWinRT.2.0.250303.1")
-    
-    if(EXISTS "${WINDOWSAPPSDK_PACKAGE}" AND EXISTS "${CPPWINRT_PACKAGE}")
-        # WinUI3 Hello World test
-        add_executable(test-winui3-hello WIN32 src/tests/test_winui3_hello.cpp)
-        
-        # Set C++20 standard for WinRT/WinUI3 support
-        target_compile_features(test-winui3-hello PRIVATE cxx_std_20)
-        
-        # Add WinRT include directories (using only CppWinRT package headers)
-        target_include_directories(test-winui3-hello PRIVATE 
-            "${CPPWINRT_PACKAGE}/include"
-        )
-        
-        # Link WinUI3 and WinRT libraries
-        target_link_libraries(test-winui3-hello 
-            platform
-            windowsapp
-        )
-        
-        # Set subsystem to Windows for GUI app
-        set_target_properties(test-winui3-hello PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-            RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin
-            RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin
-            WIN32_EXECUTABLE TRUE
-        )
-        
-        # Add preprocessor definitions for WinUI3
-        target_compile_definitions(test-winui3-hello PRIVATE
-            WINRT_LEAN_AND_MEAN
-            NOMINMAX
-            _UNICODE
-            UNICODE
-            WIN32_LEAN_AND_MEAN
-        )
-        
-        message(STATUS "WinUI3 test target created with NuGet packages: test-winui3-hello")
-    else()
-        message(STATUS "WinUI3 NuGet packages not found - skipping WinUI3 test target")
-        message(STATUS "  Expected: ${WINDOWSAPPSDK_PACKAGE}")
-        message(STATUS "  Expected: ${CPPWINRT_PACKAGE}")
-    endif()
-endif()
 
 message(STATUS "Package targets available: package, package-cli-${CMAKE_SYSTEM_NAME}, package-app-${CMAKE_SYSTEM_NAME}")
 message(STATUS "Upload target available: upload (packages and uploads to server)")
