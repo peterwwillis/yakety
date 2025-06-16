@@ -338,3 +338,22 @@ void menu_destroy(MenuSystem *menu) {
 
     log_info("Menu destroyed");
 }
+
+void menu_show_context_menu(void) {
+    if (!g_menu_showing || !g_hidden_window || !g_tray_menu) {
+        return;
+    }
+    
+    // Get the current cursor position for the menu
+    POINT pt;
+    GetCursorPos(&pt);
+    
+    // Set foreground window to ensure menu works correctly
+    SetForegroundWindow(g_hidden_window);
+    
+    // Show the popup menu at the cursor position
+    TrackPopupMenu(g_tray_menu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, g_hidden_window, NULL);
+    
+    // Force menu to disappear when clicking away
+    PostMessage(g_hidden_window, WM_NULL, 0, 0);
+}

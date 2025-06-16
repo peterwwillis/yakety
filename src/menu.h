@@ -26,6 +26,9 @@ void menu_cleanup(void);
 // Show the menu (creates the system tray/menubar with standard items)
 int menu_show(void);
 
+// Show the context menu programmatically (as if user clicked the tray icon)
+void menu_show_context_menu(void);
+
 // Hide the menu
 void menu_hide(void);
 
