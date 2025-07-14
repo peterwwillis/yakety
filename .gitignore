@@ -47,3 +47,5 @@ test_*.wav
 # Claude Code
 .claude/settings.local.json
 nul
+
+/todos/worktrees/

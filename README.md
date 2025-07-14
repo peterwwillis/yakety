@@ -1,8 +1,6 @@
-<!-- Generated: 2025-06-14 22:35:00 UTC -->
-
 # Yakety
 
-Cross-platform speech-to-text application for instant voice transcription through global keyboard shortcuts. Press and hold FN (macOS) or Right Ctrl (Windows) to record, transcription is processed locally using Whisper models and automatically pasted.
+Cross-platform speech-to-text application for instant voice transcription through global keyboard shortcuts. Press and hold FN (macOS) or Right Ctrl (Windows) to record, transcription is processed locally using Whisper models and automatically pasted into app with focus.
 
 ## Quick Start
 
@@ -23,17 +21,6 @@ cmake --build build --target yakety-app
 - **Audio**: `src/audio.c` - MiniAudio-based recording (16kHz mono)
 - **Transcription**: `src/transcription.cpp` - Whisper.cpp integration
 - **Models**: `src/models.c` - Model loading with fallback system
-
-## Documentation
-
-- **[Project Overview](docs/project-overview.md)** - Architecture, technology stack, platform requirements
-- **[Architecture](docs/architecture.md)** - Component organization, data flow, platform abstraction
-- **[Build System](docs/build-system.md)** - CMake configuration, dependencies, platform setup
-- **[Development](docs/development.md)** - Code style, patterns, workflows, common issues
-- **[Testing](docs/testing.md)** - Test programs, SwiftUI dialog verification
-- **[Deployment](docs/deployment.md)** - Packaging, distribution, server deployment
-- **[Files Catalog](docs/files.md)** - Complete file reference with dependencies
-- **[Windows development on macOS through WSL](wsl/wsl-development.md)** - Modify code on macOS, rsync, compile and run on Windows through WSL.
 
 ## Requirements
 
