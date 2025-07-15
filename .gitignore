@@ -49,3 +49,4 @@ test_*.wav
 nul
 
 /todos/worktrees/
+.cache
