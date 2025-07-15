@@ -57,15 +57,17 @@ function(build_whisper_cpp)
     
     # Build whisper.cpp if libraries don't exist
     set(WHISPER_LIBS_EXIST TRUE)
-    if(WIN32)
-        set(LIB_SUFFIX "Release/")
-    else()
-        set(LIB_SUFFIX "")
-    endif()
     
-    if(NOT EXISTS "${WHISPER_BUILD_DIR}/src/${LIB_SUFFIX}libwhisper.a" AND
-       NOT EXISTS "${WHISPER_BUILD_DIR}/src/${LIB_SUFFIX}whisper.lib")
-        set(WHISPER_LIBS_EXIST FALSE)
+    # Check both possible library locations (Visual Studio and Ninja)
+    if(WIN32)
+        if(NOT EXISTS "${WHISPER_BUILD_DIR}/src/Release/whisper.lib" AND
+           NOT EXISTS "${WHISPER_BUILD_DIR}/src/whisper.lib")
+            set(WHISPER_LIBS_EXIST FALSE)
+        endif()
+    else()
+        if(NOT EXISTS "${WHISPER_BUILD_DIR}/src/libwhisper.a")
+            set(WHISPER_LIBS_EXIST FALSE)
+        endif()
     endif()
     
     if(NOT WHISPER_LIBS_EXIST)
@@ -74,9 +76,19 @@ function(build_whisper_cpp)
         # Create build directory
         file(MAKE_DIRECTORY ${WHISPER_BUILD_DIR})
         
+        # Check if Ninja is available
+        find_program(NINJA_EXECUTABLE ninja)
+        if(NINJA_EXECUTABLE)
+            set(WHISPER_GENERATOR "Ninja")
+            message(STATUS "Using Ninja generator for whisper.cpp build")
+        else()
+            set(WHISPER_GENERATOR "${CMAKE_GENERATOR}")
+            message(STATUS "Ninja not found, using ${CMAKE_GENERATOR} for whisper.cpp build")
+        endif()
+        
         # Configure
         execute_process(
-            COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" ${WHISPER_CMAKE_ARGS} ..
+            COMMAND ${CMAKE_COMMAND} -G "${WHISPER_GENERATOR}" ${WHISPER_CMAKE_ARGS} ..
             WORKING_DIRECTORY ${WHISPER_BUILD_DIR}
             RESULT_VARIABLE result
         )

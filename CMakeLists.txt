@@ -220,11 +220,13 @@ elseif(WIN32)
 endif()
 
 # Find and link whisper.cpp libraries
-if(WIN32 AND NOT CMAKE_GENERATOR MATCHES "Ninja")
+# Check if whisper.cpp was built with Visual Studio by looking for library locations
+if(WIN32 AND EXISTS "${WHISPER_BUILD_DIR}/src/Release/whisper.lib")
     # Visual Studio generator puts libraries in Release/Debug subdirs
     set(WHISPER_LIB_DIR "${WHISPER_BUILD_DIR}/src/Release")
     set(GGML_LIB_DIR "${WHISPER_BUILD_DIR}/ggml/src/Release")
 else()
+    # Ninja or other generators use flat directory structure
     set(WHISPER_LIB_DIR "${WHISPER_BUILD_DIR}/src")
     set(GGML_LIB_DIR "${WHISPER_BUILD_DIR}/ggml/src")
 endif()
@@ -247,11 +249,12 @@ if(APPLE)
         list(APPEND WHISPER_LIBS ${GGML_BLAS_LIBRARY})
     endif()
 elseif(WIN32 AND HAS_VULKAN)
-    if(NOT CMAKE_GENERATOR MATCHES "Ninja")
-        find_library(GGML_VULKAN_LIBRARY NAMES ggml-vulkan PATHS "${GGML_LIB_DIR}/../ggml-vulkan/Release" NO_DEFAULT_PATH)
-    else()
-        find_library(GGML_VULKAN_LIBRARY NAMES ggml-vulkan PATHS "${GGML_LIB_DIR}/ggml-vulkan" NO_DEFAULT_PATH)
-    endif()
+    # Check both possible locations for ggml-vulkan library
+    find_library(GGML_VULKAN_LIBRARY NAMES ggml-vulkan 
+        PATHS 
+            "${GGML_LIB_DIR}/../ggml-vulkan/Release"  # Visual Studio location
+            "${GGML_LIB_DIR}/ggml-vulkan"              # Ninja location
+        NO_DEFAULT_PATH)
     if(GGML_VULKAN_LIBRARY)
         list(APPEND WHISPER_LIBS ${GGML_VULKAN_LIBRARY})
     endif()
