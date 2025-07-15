@@ -33,8 +33,8 @@ Implement additional key cancellation functionality with precise key state track
    - [x] Add "wait for all keys released" state before accepting new hotkey combinations
 
 4. **Add cancellation handler in main application**
-   - [ ] Implement `on_key_cancel()` function in `src/main.c` that stops recording, hides overlay, and cleans up audio
-   - [ ] Register cancellation callback when initializing keylogger
+   - [x] Implement `on_key_cancel()` function in `src/main.c` that stops recording, hides overlay, and cleans up audio
+   - [x] Register cancellation callback when initializing keylogger
 
 5. **Update recording state management**
    - [ ] Add `cancelled` flag to `AppState` struct to distinguish cancelled from completed recordings
