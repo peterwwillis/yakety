@@ -216,6 +216,26 @@ int menu_show(void) {
     return 0;
 }
 
+void menu_show_context_menu(void) {
+    if (!g_menu_showing || !statusItem || !statusMenu) {
+        return;
+    }
+    
+    app_dispatch_main(^{
+        // Get the status item button
+        NSStatusBarButton *button = statusItem.button;
+        if (button) {
+            // Modern way to show context menu - simulate a click
+            // First get the button's frame in screen coordinates
+            NSRect buttonFrame = [button convertRect:button.bounds toView:nil];
+            NSRect screenFrame = [button.window convertRectToScreen:buttonFrame];
+            
+            // Show the menu at the button's location
+            [statusMenu popUpMenuPositioningItem:nil atLocation:NSMakePoint(NSMidX(screenFrame), NSMinY(screenFrame)) inView:nil];
+        }
+    });
+}
+
 void menu_hide(void) {
     if (!g_menu || !g_menu_showing) {
         return;

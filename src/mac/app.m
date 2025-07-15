@@ -1,5 +1,6 @@
 #include "../app.h"
 #include "../logging.h"
+#include "../menu.h"
 #include "../overlay.h"
 #include "../utils.h"
 #include "dispatch.h"
@@ -22,6 +23,18 @@ static AppConfig g_config = {0};
 @end
 
 @implementation AppDelegate
+
+- (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)flag {
+    (void)sender;
+    (void)flag;
+    
+    // When user tries to open the app again (e.g., clicking Dock icon or launching again),
+    // show the context menu instead
+    if (!g_config.is_console) {
+        menu_show_context_menu();
+    }
+    return NO; // Don't reopen windows
+}
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     (void) notification;
@@ -61,6 +74,33 @@ int app_init(const char *name, const char *version, bool is_console, AppReadyCal
 
     // Initialize NSApplication
     [NSApplication sharedApplication];
+    
+    // For tray apps, check if another instance is already running
+    if (!is_console) {
+        NSArray *runningApps = [[NSWorkspace sharedWorkspace] runningApplications];
+        NSString *bundleId = [[NSBundle mainBundle] bundleIdentifier];
+        
+        int instanceCount = 0;
+        for (NSRunningApplication *app in runningApps) {
+            if ([app.bundleIdentifier isEqualToString:bundleId]) {
+                instanceCount++;
+            }
+        }
+        
+        // If there's already another instance running, send it a reopen event and exit
+        if (instanceCount > 1) {
+            // Find the other running instance and activate it
+            for (NSRunningApplication *app in runningApps) {
+                if ([app.bundleIdentifier isEqualToString:bundleId] && app.processIdentifier != [[NSProcessInfo processInfo] processIdentifier]) {
+                    // Activate the existing instance (this triggers applicationShouldHandleReopen)
+                    [app activateWithOptions:NSApplicationActivateAllWindows];
+                    break;
+                }
+            }
+            // Exit this instance
+            exit(0);
+        }
+    }
 
     if (is_console) {
         [NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited];

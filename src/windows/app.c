@@ -1,5 +1,6 @@
 #include "../app.h"
 #include "../logging.h"
+#include "../menu.h"
 #include "../utils.h"
 #include <shellscalingapi.h>
 #include <stdlib.h>
@@ -17,8 +18,9 @@ typedef struct {
     bool running;
 } AppConfig;
 
-// Define a custom message for the app ready event
+// Define custom messages
 #define WM_APP_READY (WM_USER + 3)
+#define WM_SHOW_CONTEXT_MENU (WM_USER + 4)
 
 HWND g_hwnd = NULL;
 static AppConfig g_config = {0};
@@ -39,6 +41,13 @@ static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM l
         // Call on_ready callback when message loop is running
         if (g_config.on_ready) {
             g_config.on_ready();
+        }
+        return 0;
+        
+    case WM_SHOW_CONTEXT_MENU:
+        // Show context menu when requested by another instance
+        if (!g_config.is_console) {
+            menu_show_context_menu();
         }
         return 0;
     }
@@ -67,6 +76,25 @@ int app_init(const char *name, const char *version, bool is_console, AppReadyCal
     g_config.version = utils_strdup(version);
     g_config.is_console = is_console;
     g_config.on_ready = on_ready;
+    
+    // For tray apps, implement single instance detection
+    if (!is_console) {
+        HANDLE mutex = CreateMutexA(NULL, TRUE, "Global\\YaketyApp_SingleInstance");
+        if (GetLastError() == ERROR_ALREADY_EXISTS) {
+            // Another instance is already running
+            CloseHandle(mutex);
+            
+            // Find the existing instance window and send it a message to show context menu
+            HWND existingWindow = FindWindowA(WINDOW_CLASS_NAME, NULL);
+            if (existingWindow) {
+                PostMessage(existingWindow, WM_SHOW_CONTEXT_MENU, 0, 0);
+            }
+            
+            // Exit this instance
+            exit(0);
+        }
+        // Keep the mutex handle - it will be automatically released when the process exits
+    }
 
     // Create a hidden window for message processing (needed for keyboard hooks even in console mode)
     {
