@@ -74,6 +74,21 @@ static void remove_pressed_key(DWORD scanCode, DWORD flags) {
     }
 }
 
+// Check if a key is part of the target combination
+static bool is_combo_key(uint32_t scanCode, uint32_t flags) {
+    if (!g_keylogger)
+        return false;
+    
+    uint32_t extended = (flags & LLKHF_EXTENDED) ? 1 : 0;
+    for (int i = 0; i < g_keylogger->target_combo.count; i++) {
+        if (g_keylogger->target_combo.keys[i].code == scanCode && 
+            g_keylogger->target_combo.keys[i].flags == extended) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Check if current pressed keys match the target combination
 static bool check_combination_match(void) {
     if (!g_keylogger)
@@ -103,57 +118,63 @@ static bool check_combination_match(void) {
 
 // Low-level keyboard hook procedure
 LRESULT CALLBACK keyboard_proc(int nCode, WPARAM wParam, LPARAM lParam) {
-    static int event_count = 0;
-
     if (nCode >= 0 && g_keylogger && !g_keylogger->paused) {
         KBDLLHOOKSTRUCT *kbdStruct = (KBDLLHOOKSTRUCT *) lParam;
         bool keyDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
         bool keyUp = (wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
 
-        // Debug logging for first few events and Right Ctrl specifically
-        if (event_count < 5 || kbdStruct->scanCode == 0x1D) {
-            bool extended = (kbdStruct->flags & LLKHF_EXTENDED) != 0;
-            const char *ctrl_type = (kbdStruct->scanCode == 0x1D) ? (extended ? "RIGHT_CTRL" : "LEFT_CTRL") : "OTHER";
-            log_info("Key event %d: scanCode=0x%02X, flags=0x%08X, extended=%d, down=%d, up=%d (%s)", event_count,
-                     kbdStruct->scanCode, kbdStruct->flags, extended, keyDown, keyUp, ctrl_type);
-            if (event_count < 20)
-                event_count++;
+        // Track all key presses/releases
+        if (keyDown) {
+            add_pressed_key(kbdStruct->scanCode, kbdStruct->flags);
+        } else if (keyUp) {
+            remove_pressed_key(kbdStruct->scanCode, kbdStruct->flags);
         }
 
-        if (keyDown) {
-            // Add key to pressed list
-            add_pressed_key(kbdStruct->scanCode, kbdStruct->flags);
-
-            // Check if combination is now complete
-            if (check_combination_match() && !g_keylogger->combo_pressed) {
-                g_keylogger->combo_pressed = true;
-                if (g_keylogger->on_press) {
-                    g_keylogger->on_press(g_keylogger->userdata);
-                }
-            }
-        } else if (keyUp) {
-            // Check if we're releasing a key from our combination
-            bool was_combo_key = false;
-            if (g_keylogger->combo_pressed) {
-                uint32_t extended = (kbdStruct->flags & LLKHF_EXTENDED) ? 1 : 0;
-                for (int i = 0; i < g_keylogger->target_combo.count; i++) {
-                    if (g_keylogger->target_combo.keys[i].code == kbdStruct->scanCode &&
-                        g_keylogger->target_combo.keys[i].flags == extended) {
-                        was_combo_key = true;
-                        break;
+        // State machine logic
+        switch (g_keylogger->state) {
+            case KEYLOGGER_STATE_IDLE: {
+                // Check if hotkey combo is pressed
+                if (keyDown && check_combination_match()) {
+                    g_keylogger->state = KEYLOGGER_STATE_COMBO_ACTIVE;
+                    g_keylogger->combo_pressed = true;
+                    if (g_keylogger->on_press) {
+                        g_keylogger->on_press(g_keylogger->userdata);
                     }
                 }
+                break;
             }
-
-            // Remove key from pressed list
-            remove_pressed_key(kbdStruct->scanCode, kbdStruct->flags);
-
-            // If we released a combo key, trigger release
-            if (was_combo_key && g_keylogger->combo_pressed) {
-                g_keylogger->combo_pressed = false;
-                if (g_keylogger->on_release) {
-                    g_keylogger->on_release(g_keylogger->userdata);
+            
+            case KEYLOGGER_STATE_COMBO_ACTIVE: {
+                if (keyDown) {
+                    // A new key was pressed - check if it's part of the combo
+                    if (!is_combo_key(kbdStruct->scanCode, kbdStruct->flags)) {
+                        // Non-combo key pressed - cancel
+                        g_keylogger->state = KEYLOGGER_STATE_WAITING_FOR_ALL_RELEASED;
+                        g_keylogger->combo_pressed = false;
+                        if (g_keylogger->on_cancel) {
+                            g_keylogger->on_cancel(g_keylogger->userdata);
+                        }
+                    }
+                } else if (keyUp) {
+                    // Check if combo is still held
+                    if (!check_combination_match()) {
+                        // Combo released normally
+                        g_keylogger->state = KEYLOGGER_STATE_WAITING_FOR_ALL_RELEASED;
+                        g_keylogger->combo_pressed = false;
+                        if (g_keylogger->on_release) {
+                            g_keylogger->on_release(g_keylogger->userdata);
+                        }
+                    }
                 }
+                break;
+            }
+            
+            case KEYLOGGER_STATE_WAITING_FOR_ALL_RELEASED: {
+                // Wait until all keys are released
+                if (g_keylogger->pressed_count == 0) {
+                    g_keylogger->state = KEYLOGGER_STATE_IDLE;
+                }
+                break;
             }
         }
     }
