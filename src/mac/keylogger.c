@@ -17,6 +17,43 @@ static CFRunLoopSourceRef runLoopSource = NULL;
 // Current key combination to monitor (default is FN key)
 static KeyCombination g_target_combo = {0, kCGEventFlagMaskSecondaryFn};
 
+// Key state tracking
+static KeyloggerState g_state = KEYLOGGER_STATE_IDLE;
+#define MAX_PRESSED_KEYS 32
+static CGKeyCode g_pressed_keys[MAX_PRESSED_KEYS];
+static int g_pressed_keys_count = 0;
+
+// Check if a key is currently pressed
+static bool is_key_pressed(CGKeyCode keyCode) {
+    for (int i = 0; i < g_pressed_keys_count; i++) {
+        if (g_pressed_keys[i] == keyCode) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Add a key to the pressed keys array
+static void add_pressed_key(CGKeyCode keyCode) {
+    if (!is_key_pressed(keyCode) && g_pressed_keys_count < MAX_PRESSED_KEYS) {
+        g_pressed_keys[g_pressed_keys_count++] = keyCode;
+    }
+}
+
+// Remove a key from the pressed keys array
+static void remove_pressed_key(CGKeyCode keyCode) {
+    for (int i = 0; i < g_pressed_keys_count; i++) {
+        if (g_pressed_keys[i] == keyCode) {
+            // Shift remaining keys
+            for (int j = i; j < g_pressed_keys_count - 1; j++) {
+                g_pressed_keys[j] = g_pressed_keys[j + 1];
+            }
+            g_pressed_keys_count--;
+            break;
+        }
+    }
+}
+
 // Check if current event matches our target combination
 static bool matches_target_combination(CGEventType type, CGEventRef event) {
     if (isPaused)
