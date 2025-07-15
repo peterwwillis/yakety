@@ -20,7 +20,7 @@ Implement additional key cancellation functionality with precise key state track
 
 2. **Implement precise key state tracking in macOS keylogger**
    - [x] Add pressed keys tracking array to monitor all currently pressed keys in `src/mac/keylogger.c`
-   - [ ] Modify `CGEventCallback()` to track key presses/releases and classify keys as combo/non-combo
+   - [x] Modify `CGEventCallback()` to track key presses/releases and classify keys as combo/non-combo
    - [ ] Implement logic: combo key released while only combo keys pressed → send release callback
    - [ ] Implement logic: non-combo key pressed while combo active → send cancel callback
    - [ ] Add "wait for all keys released" state before accepting new hotkey combinations

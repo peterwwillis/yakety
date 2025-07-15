@@ -92,6 +92,17 @@ static bool matches_target_combination(CGEventType type, CGEventRef event) {
     return keyMatches && modifiersMatch;
 }
 
+// Check if a key is part of the target combination
+static bool is_combo_key(CGKeyCode keyCode, CGEventFlags flags) {
+    // For modifier-only combos (like FN), any regular key is NOT a combo key
+    if (g_target_combo.keys[0].code == 0) {
+        return keyCode == 0; // Only modifier changes are combo keys
+    }
+    
+    // For specific key combos, check if this is the target key
+    return keyCode == g_target_combo.keys[0].code;
+}
+
 // Main callback function
 static CGEventRef CGEventCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *refcon) {
     (void) proxy;
@@ -106,44 +117,72 @@ static CGEventRef CGEventCallback(CGEventTapProxy proxy, CGEventType type, CGEve
     if (isPaused)
         return event;
 
-    bool currentlyMatches = matches_target_combination(type, event);
+    // Track all key presses/releases
+    if (type == kCGEventKeyDown || type == kCGEventKeyUp) {
+        CGKeyCode keyCode = (CGKeyCode) CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
+        
+        if (type == kCGEventKeyDown) {
+            add_pressed_key(keyCode);
+        } else {
+            remove_pressed_key(keyCode);
+        }
+    }
 
-    if (type == kCGEventKeyDown) {
-        // Key down event
-        if (currentlyMatches && !keyPressed) {
-            keyPressed = true;
-            if (g_on_press) {
-                g_on_press(g_userdata);
-            }
-        }
-    } else if (type == kCGEventKeyUp) {
-        // Key up event
-        if (g_target_combo.keys[0].code != 0) {
-            // Specific key combination (not modifier-only)
-            CGKeyCode keyCode = (CGKeyCode) CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
-            if (keyCode == g_target_combo.keys[0].code && keyPressed) {
-                keyPressed = false;
-                if (g_on_release) {
-                    g_on_release(g_userdata);
-                }
-            }
-        }
-        // For modifier-only combinations (like FN), handle in kCGEventFlagsChanged section
-    } else if (type == kCGEventFlagsChanged) {
-        // Modifier flags changed
-        if (g_target_combo.keys[0].code == 0) {
-            // Modifier-only combination
-            if (currentlyMatches && !keyPressed) {
+    // State machine logic
+    switch (g_state) {
+        case KEYLOGGER_STATE_IDLE: {
+            // Check if hotkey combo is pressed
+            if (matches_target_combination(type, event)) {
+                g_state = KEYLOGGER_STATE_COMBO_ACTIVE;
                 keyPressed = true;
                 if (g_on_press) {
                     g_on_press(g_userdata);
                 }
-            } else if (!currentlyMatches && keyPressed) {
-                keyPressed = false;
-                if (g_on_release) {
-                    g_on_release(g_userdata);
+            }
+            break;
+        }
+        
+        case KEYLOGGER_STATE_COMBO_ACTIVE: {
+            if (type == kCGEventKeyDown) {
+                // A new key was pressed
+                CGKeyCode keyCode = (CGKeyCode) CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
+                CGEventFlags flags = CGEventGetFlags(event);
+                
+                if (!is_combo_key(keyCode, flags) && keyCode != 0) {
+                    // Non-combo key pressed - cancel
+                    g_state = KEYLOGGER_STATE_WAITING_FOR_ALL_RELEASED;
+                    keyPressed = false;
+                    if (g_on_cancel) {
+                        g_on_cancel(g_userdata);
+                    }
+                }
+            } else if (type == kCGEventKeyUp || type == kCGEventFlagsChanged) {
+                // Check if combo is still held
+                if (!matches_target_combination(type, event)) {
+                    // Combo released normally
+                    g_state = KEYLOGGER_STATE_WAITING_FOR_ALL_RELEASED;
+                    keyPressed = false;
+                    if (g_on_release) {
+                        g_on_release(g_userdata);
+                    }
                 }
             }
+            break;
+        }
+        
+        case KEYLOGGER_STATE_WAITING_FOR_ALL_RELEASED: {
+            // Wait until all keys are released
+            if (g_pressed_keys_count == 0 && type == kCGEventFlagsChanged) {
+                // Also check that no modifier keys are pressed
+                CGEventFlags flags = CGEventGetFlags(event);
+                CGEventFlags relevantFlags = flags & (kCGEventFlagMaskControl | kCGEventFlagMaskAlternate | 
+                                                     kCGEventFlagMaskShift | kCGEventFlagMaskCommand |
+                                                     kCGEventFlagMaskSecondaryFn | kCGEventFlagMaskAlphaShift);
+                if (relevantFlags == 0) {
+                    g_state = KEYLOGGER_STATE_IDLE;
+                }
+            }
+            break;
         }
     }
 
