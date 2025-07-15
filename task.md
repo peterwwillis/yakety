@@ -37,8 +37,8 @@ Implement additional key cancellation functionality with precise key state track
    - [x] Register cancellation callback when initializing keylogger
 
 5. **Update recording state management**
-   - [ ] Add `cancelled` flag to `AppState` struct to distinguish cancelled from completed recordings
-   - [ ] Ensure cancelled recordings don't trigger transcription or text insertion
+   - [x] Add `cancelled` flag to `AppState` struct to distinguish cancelled from completed recordings
+   - [x] Ensure cancelled recordings don't trigger transcription or text insertion
 
 6. **Test precise key state handling**
    - [ ] Manual test: FN → release FN (normal case) → verify release callback and transcription
