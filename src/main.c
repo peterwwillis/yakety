@@ -126,7 +126,7 @@ static bool handle_keylogger_permissions(void) {
 // Setup keylogger with permission handling
 static bool setup_keylogger(void) {
     while (true) {
-        if (keylogger_init(on_key_press, on_key_release, g_state) == 0) {
+        if (keylogger_init(on_key_press, on_key_release, NULL, g_state) == 0) {
             log_info("✅ Keylogger started successfully");
 
             // Load saved hotkey from preferences

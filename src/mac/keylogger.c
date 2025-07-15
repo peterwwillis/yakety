@@ -7,6 +7,7 @@
 
 static KeyCallback g_on_press = NULL;
 static KeyCallback g_on_release = NULL;
+static KeyCallback g_on_cancel = NULL;
 static void *g_userdata = NULL;
 static bool keyPressed = false;
 static bool isPaused = false;
@@ -112,9 +113,10 @@ static CGEventRef CGEventCallback(CGEventTapProxy proxy, CGEventType type, CGEve
     return event;
 }
 
-int keylogger_init(KeyCallback on_press, KeyCallback on_release, void *userdata) {
+int keylogger_init(KeyCallback on_press, KeyCallback on_release, KeyCallback on_key_cancel, void *userdata) {
     g_on_press = on_press;
     g_on_release = on_release;
+    g_on_cancel = on_key_cancel;
     g_userdata = userdata;
 
     // Create event tap

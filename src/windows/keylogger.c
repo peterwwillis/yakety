@@ -11,6 +11,7 @@ typedef struct {
     HHOOK keyboard_hook;
     KeyCallback on_press;
     KeyCallback on_release;
+    KeyCallback on_cancel;
     void *userdata;
 
     // Keylogger state (all accessed from main thread)
@@ -160,7 +161,7 @@ LRESULT CALLBACK keyboard_proc(int nCode, WPARAM wParam, LPARAM lParam) {
     return CallNextHookEx(g_keylogger ? g_keylogger->keyboard_hook : NULL, nCode, wParam, lParam);
 }
 
-int keylogger_init(KeyCallback on_press, KeyCallback on_release, void *userdata) {
+int keylogger_init(KeyCallback on_press, KeyCallback on_release, KeyCallback on_key_cancel, void *userdata) {
     if (g_keylogger) {
         return -1; // Already initialized
     }
@@ -174,6 +175,7 @@ int keylogger_init(KeyCallback on_press, KeyCallback on_release, void *userdata)
     // Store callbacks
     g_keylogger->on_press = on_press;
     g_keylogger->on_release = on_release;
+    g_keylogger->on_cancel = on_key_cancel;
     g_keylogger->userdata = userdata;
 
     // Install low-level keyboard hook
