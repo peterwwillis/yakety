@@ -168,14 +168,10 @@ static CGEventRef CGEventCallback(CGEventTapProxy proxy, CGEventType type, CGEve
     if (type == kCGEventKeyDown || type == kCGEventKeyUp) {
         CGKeyCode keyCode = (CGKeyCode) CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
         CGEventFlags flags = CGEventGetFlags(event);
-        log_info("%s: 0x%x", type == kCGEventKeyDown ? "Key down" : "Key up", keyCode);
         update_key_state(type, keyCode, flags);
-        log_info("Pressed keys: %d", g_pressed_keys_count);
     } else if (type == kCGEventFlagsChanged) {
         CGEventFlags flags = CGEventGetFlags(event);
-        log_info("Flags changed: 0x%x", flags);
         update_key_state(type, 0, flags);
-        log_info("Pressed keys: %d", g_pressed_keys_count);
     }
 
     // State machine logic
@@ -183,7 +179,6 @@ static CGEventRef CGEventCallback(CGEventTapProxy proxy, CGEventType type, CGEve
         case KEYLOGGER_STATE_IDLE: {
             // Check if hotkey combo is pressed
             if (matches_target_combination()) {
-                log_info("Combo matched - starting recording");
                 g_state = KEYLOGGER_STATE_COMBO_ACTIVE;
                 comboPressed = true;
                 if (g_on_press) {
@@ -196,17 +191,15 @@ static CGEventRef CGEventCallback(CGEventTapProxy proxy, CGEventType type, CGEve
         case KEYLOGGER_STATE_COMBO_ACTIVE: {
             // Check if combo is still held
             if (!matches_target_combination()) {
-                log_info("Combo no longer matched - stopping recording");
                 // Combo no longer held (key released or extra key pressed)
                 g_state = KEYLOGGER_STATE_WAITING_FOR_ALL_RELEASED;
                 comboPressed = false;
                 if (g_on_release) {
                     g_on_release(g_userdata);
                 }
-                
+
                 // If all keys are already released, transition immediately to IDLE
                 if (g_pressed_keys_count == 0) {
-                    log_info("All keys released - back to idle immediately");
                     g_state = KEYLOGGER_STATE_IDLE;
                 }
             }
@@ -216,7 +209,6 @@ static CGEventRef CGEventCallback(CGEventTapProxy proxy, CGEventType type, CGEve
         case KEYLOGGER_STATE_WAITING_FOR_ALL_RELEASED: {
             // Wait until all keys are released
             if (g_pressed_keys_count == 0) {
-                log_info("All keys released - back to idle");
                 g_state = KEYLOGGER_STATE_IDLE;
             }
             break;

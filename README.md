@@ -32,7 +32,7 @@ cmake --build build --target yakety-app
 
 ```bash
 cmake --build build --target package     # Platform packages
-cmake --build build --target upload      # Upload to server
+cmake --build build --target upload      # Upload to server, includes packaging
 ```
 
 Outputs: CLI tools, app bundles (DMG/ZIP), all with embedded Whisper models and resources.
