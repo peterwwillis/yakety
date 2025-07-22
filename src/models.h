@@ -8,6 +8,7 @@ int models_load(void);
 
 // Model path utilities
 const char *models_get_current_path(void);
+const char *models_get_vad_path(void);
 bool models_file_exists(const char *path);
 
 #endif // MODELS_H

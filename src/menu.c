@@ -16,6 +16,7 @@
 
 // Global variables for menu management
 int g_launch_menu_index = -1;
+int g_vad_menu_index = -1;
 
 // Menu callback functions
 static void menu_about(void) {
@@ -144,6 +145,40 @@ static void menu_toggle_launch_at_login(void) {
     }
 }
 
+static void menu_toggle_vad(void) {
+    bool is_enabled = preferences_get_bool("vad_enabled", true);
+    
+    // Toggle the setting
+    preferences_set_bool("vad_enabled", !is_enabled);
+    preferences_save();
+    
+    // Update the menu item title
+    if (g_vad_menu_index >= 0) {
+        const char *new_label = is_enabled ? "Enable VAD" : "Disable VAD";
+        menu_update_item(g_vad_menu_index, new_label);
+    }
+    
+    // Show status and reload model
+    const char *status = is_enabled ? "disabled" : "enabled";
+    char message[256];
+    snprintf(message, sizeof(message), "Voice Activity Detection has been %s. Reloading model...", status);
+    dialog_info("VAD Settings", message);
+    
+    // Pause keylogger during reload
+    keylogger_pause();
+    
+    // Reload the model with new VAD setting
+    int result = models_load();
+    
+    // Resume keylogger
+    keylogger_resume();
+    
+    if (result != 0) {
+        log_error("Failed to reload model after VAD setting change");
+        dialog_error("VAD Settings", "Failed to reload model with new VAD setting.");
+    }
+}
+
 static void menu_quit(void) {
     app_quit();
 }
@@ -160,6 +195,11 @@ int menu_setup_items(MenuSystem *menu) {
     menu_add_item(menu, "Models & Languages", menu_models);
     menu_add_item(menu, "Configure Hotkey", menu_configure_hotkey);
     menu_add_separator(menu);
+
+    // Add VAD toggle and track its index
+    const char *vad_label =
+        preferences_get_bool("vad_enabled", true) ? "Disable VAD" : "Enable VAD";
+    g_vad_menu_index = menu_add_item(menu, vad_label, menu_toggle_vad);
 
     // Add launch at login toggle and track its index
     const char *launch_label =

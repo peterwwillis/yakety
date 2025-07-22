@@ -114,6 +114,71 @@ const char *utils_get_model_path(void) {
     return NULL;
 }
 
+const char *utils_get_vad_model_path(void) {
+    static char vad_model_path[PATH_MAX] = {0};
+    
+    @autoreleasepool {
+        // First check current directory
+        if (access("silero-v5.1.2-ggml.bin", F_OK) == 0) {
+            return "silero-v5.1.2-ggml.bin";
+        }
+
+        // Check in app bundle Resources
+        NSBundle *bundle = [NSBundle mainBundle];
+        
+        // Check Resources/models/silero-v5.1.2-ggml.bin (where CMake puts it)
+        NSString *resourceModelPath = [bundle pathForResource:@"models/silero-v5.1.2-ggml" ofType:@"bin"];
+        if (resourceModelPath) {
+            strncpy(vad_model_path, [resourceModelPath UTF8String], PATH_MAX - 1);
+            return vad_model_path;
+        }
+
+        // Check Resources/silero-v5.1.2-ggml.bin
+        NSString *resourcePath = [bundle pathForResource:@"silero-v5.1.2-ggml" ofType:@"bin"];
+        if (resourcePath) {
+            strncpy(vad_model_path, [resourcePath UTF8String], PATH_MAX - 1);
+            return vad_model_path;
+        }
+
+        // Check in executable directory
+        NSString *execPath = [bundle executablePath];
+        NSString *execDir = [execPath stringByDeletingLastPathComponent];
+
+        // Check models subdirectory in executable directory
+        NSString *modelsDir = [execDir stringByAppendingPathComponent:@"models"];
+        NSString *modelInModelsDir = [modelsDir stringByAppendingPathComponent:@"silero-v5.1.2-ggml.bin"];
+        if ([[NSFileManager defaultManager] fileExistsAtPath:modelInModelsDir]) {
+            strncpy(vad_model_path, [modelInModelsDir UTF8String], PATH_MAX - 1);
+            return vad_model_path;
+        }
+
+        // Check directly in executable directory
+        NSString *modelInExecDir = [execDir stringByAppendingPathComponent:@"silero-v5.1.2-ggml.bin"];
+        if ([[NSFileManager defaultManager] fileExistsAtPath:modelInExecDir]) {
+            strncpy(vad_model_path, [modelInExecDir UTF8String], PATH_MAX - 1);
+            return vad_model_path;
+        }
+
+        // Check whisper.cpp/models directory relative to current directory
+        NSString *whisperModelsPath = @"whisper.cpp/models/for-tests-silero-v5.1.2-ggml.bin";
+        if ([[NSFileManager defaultManager] fileExistsAtPath:whisperModelsPath]) {
+            strncpy(vad_model_path, [whisperModelsPath UTF8String], PATH_MAX - 1);
+            return vad_model_path;
+        }
+
+        // Check relative to executable's parent parent (for build/bin structure)
+        NSString *projectRoot = [[execDir stringByDeletingLastPathComponent] stringByDeletingLastPathComponent];
+        NSString *whisperModelsFromRoot =
+            [projectRoot stringByAppendingPathComponent:@"whisper.cpp/models/for-tests-silero-v5.1.2-ggml.bin"];
+        if ([[NSFileManager defaultManager] fileExistsAtPath:whisperModelsFromRoot]) {
+            strncpy(vad_model_path, [whisperModelsFromRoot UTF8String], PATH_MAX - 1);
+            return vad_model_path;
+        }
+    }
+
+    return NULL;
+}
+
 void utils_open_accessibility_settings(void) {
     @autoreleasepool {
         [[NSWorkspace sharedWorkspace]

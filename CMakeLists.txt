@@ -168,6 +168,7 @@ elseif(APPLE)
     set(MENUBAR_ICON "${CMAKE_CURRENT_SOURCE_DIR}/assets/generated/menubar.png")
     set(MENUBAR_ICON_2X "${CMAKE_CURRENT_SOURCE_DIR}/assets/generated/menubar@2x.png")
     set(WHISPER_MODEL "${CMAKE_CURRENT_SOURCE_DIR}/whisper.cpp/models/ggml-base-q8_0.bin")
+    set(VAD_MODEL "${CMAKE_CURRENT_SOURCE_DIR}/assets/silero-v5.1.2-ggml.bin")
 
     if(EXISTS ${ICON_FILE})
         set_source_files_properties(${ICON_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
@@ -188,6 +189,12 @@ elseif(APPLE)
     if(EXISTS ${WHISPER_MODEL})
         set_source_files_properties(${WHISPER_MODEL} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/models")
         target_sources(yakety-app PRIVATE ${WHISPER_MODEL})
+    endif()
+
+    # Copy VAD model to bundle  
+    if(EXISTS ${VAD_MODEL})
+        set_source_files_properties(${VAD_MODEL} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/models")
+        target_sources(yakety-app PRIVATE ${VAD_MODEL})
     endif()
 
     # Code sign the app
@@ -300,6 +307,16 @@ if(EXISTS ${MODEL_FILE})
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:yakety-cli>/models"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${MODEL_FILE}" "$<TARGET_FILE_DIR:yakety-cli>/models/ggml-base-q8_0.bin"
         COMMENT "Copying Whisper model to output directory"
+    )
+endif()
+
+# Copy VAD model to output directory for CLI tools
+set(VAD_MODEL_FILE "${CMAKE_CURRENT_SOURCE_DIR}/assets/silero-v5.1.2-ggml.bin")
+if(EXISTS ${VAD_MODEL_FILE})
+    add_custom_command(TARGET yakety-cli POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:yakety-cli>/models"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${VAD_MODEL_FILE}" "$<TARGET_FILE_DIR:yakety-cli>/models/silero-v5.1.2-ggml.bin"
+        COMMENT "Copying VAD model to output directory"
     )
 endif()
 

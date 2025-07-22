@@ -120,6 +120,58 @@ const char *utils_get_model_path(void) {
     return NULL;
 }
 
+const char *utils_get_vad_model_path(void) {
+    static char vad_model_path[MAX_PATH] = {0};
+
+    // Check current directory first
+    if (GetFileAttributesA("silero-v5.1.2-ggml.bin") != INVALID_FILE_ATTRIBUTES) {
+        return "silero-v5.1.2-ggml.bin";
+    }
+
+    // Get the executable directory
+    if (GetModuleFileNameA(NULL, vad_model_path, MAX_PATH) == 0) {
+        return NULL;
+    }
+
+    // Find the last backslash to get directory
+    char *last_slash = strrchr(vad_model_path, '\\');
+    if (last_slash) {
+        *last_slash = '\0';
+    }
+
+    // Check models subdirectory in executable directory
+    char test_path[MAX_PATH];
+    snprintf(test_path, MAX_PATH, "%s\\models\\silero-v5.1.2-ggml.bin", vad_model_path);
+
+    if (GetFileAttributesA(test_path) != INVALID_FILE_ATTRIBUTES) {
+        strcpy(vad_model_path, test_path); // Return full path with filename
+        return vad_model_path;
+    }
+
+    // Check directly in executable directory
+    snprintf(test_path, MAX_PATH, "%s\\silero-v5.1.2-ggml.bin", vad_model_path);
+
+    if (GetFileAttributesA(test_path) != INVALID_FILE_ATTRIBUTES) {
+        strcpy(vad_model_path, test_path); // Return full path with filename
+        return vad_model_path;
+    }
+
+    // Try whisper.cpp subdirectory
+    snprintf(test_path, MAX_PATH, "%s\\whisper.cpp\\models\\for-tests-silero-v5.1.2-ggml.bin", vad_model_path);
+
+    if (GetFileAttributesA(test_path) != INVALID_FILE_ATTRIBUTES) {
+        strcpy(vad_model_path, test_path); // Return full path with filename
+        return vad_model_path;
+    }
+
+    // Check whisper.cpp/models relative to current directory
+    if (GetFileAttributesA("whisper.cpp\\models\\for-tests-silero-v5.1.2-ggml.bin") != INVALID_FILE_ATTRIBUTES) {
+        return "whisper.cpp\\models\\for-tests-silero-v5.1.2-ggml.bin";
+    }
+
+    return NULL;
+}
+
 void utils_open_accessibility_settings(void) {
     // Windows doesn't have a specific accessibility settings page for this
     // Open general privacy settings

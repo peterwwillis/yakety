@@ -41,6 +41,7 @@ static void create_default_preferences(void) {
     set_entry("launch_at_login", "false");
     set_entry("model", "");      // Empty means use embedded model
     set_entry("language", "en"); // Default to English for low latency
+    set_entry("vad_enabled", "true"); // VAD enabled by default
 }
 
 static PreferencesEntry *find_entry(const char *key) {

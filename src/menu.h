@@ -48,7 +48,8 @@ void menu_destroy(MenuSystem *menu);
 // Shared menu setup (called by platform implementations)
 int menu_setup_items(MenuSystem *menu);
 
-// Global launch menu index (for platform implementations)
+// Global menu indices (for platform implementations)
 extern int g_launch_menu_index;
+extern int g_vad_menu_index;
 
 #endif // MENU_H

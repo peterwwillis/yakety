@@ -1,1 +1,1 @@
-- Whisper V3 Turbo model will output "Thank You" if there was silence.
+- sometimes when i press the keycombo, recording starts and transcriptions and pasting happens, but i never see the overalay. the logs do say this:

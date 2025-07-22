@@ -8,6 +8,7 @@ double utils_get_time(void);
 double utils_now(void); // Returns seconds since first call (app start)
 void utils_sleep_ms(int milliseconds);
 const char *utils_get_model_path(void);
+const char *utils_get_vad_model_path(void);
 
 // Platform-specific utilities
 void utils_open_accessibility_settings(void);

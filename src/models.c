@@ -106,6 +106,11 @@ int models_load(void) {
     return 0;
 }
 
+// Get VAD model path
+const char *models_get_vad_path(void) {
+    return utils_get_vad_model_path();
+}
+
 // Check if a model file exists
 bool models_file_exists(const char *path) {
     if (!path) return false;

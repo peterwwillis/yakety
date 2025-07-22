@@ -3,6 +3,7 @@ extern "C" {
 #include "logging.h"
 #include "utils.h"
 #include "preferences.h"
+#include "models.h"
 }
 #include <stdio.h>
 #include <stdlib.h>
@@ -108,6 +109,17 @@ int transcription_init(const char *model_path) {
 			 cparams.flash_attn ? "enabled" : "disabled",
 			 cparams.use_gpu ? "enabled" : "disabled");
 
+	// Check and log VAD status during initialization
+	bool vad_enabled = preferences_get_bool("vad_enabled", true);
+	const char *vad_model_path = models_get_vad_path();
+	if (vad_enabled && vad_model_path) {
+		log_info("🎙️ VAD (Voice Activity Detection): ENABLED");
+	} else if (!vad_enabled) {
+		log_info("🎙️ VAD (Voice Activity Detection): DISABLED (set vad_enabled=true in config or use menu to enable)");
+	} else {
+		log_info("🎙️ VAD (Voice Activity Detection): DISABLED (model not found)");
+	}
+
 	log_debug("Releasing transcription mutex and returning 0 - thread=%p", utils_thread_id());
 	utils_mutex_unlock(ctx_mutex);
 	return 0;
@@ -158,6 +170,23 @@ char *transcription_process(const float *audio_data, int n_samples, int sample_r
 	wparams.n_threads = n_threads;
 	wparams.offset_ms = 0;
 	wparams.duration_ms = 0;
+
+	// Configure VAD (Voice Activity Detection)
+	bool vad_enabled = preferences_get_bool("vad_enabled", true);
+	const char *vad_model_path = models_get_vad_path();
+	if (vad_enabled && vad_model_path) {
+		wparams.vad = true;
+		wparams.vad_model_path = vad_model_path;
+		wparams.vad_params = whisper_vad_default_params();
+		log_info("VAD enabled with model: %s", vad_model_path);
+	} else {
+		wparams.vad = false;
+		if (!vad_enabled) {
+			log_info("VAD disabled in preferences");
+		} else {
+			log_info("VAD model not found, running without voice activity detection");
+		}
+	}
 
 	// Run transcription
 	double whisper_start = utils_now();
