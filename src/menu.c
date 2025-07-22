@@ -158,12 +158,6 @@ static void menu_toggle_vad(void) {
         menu_update_item(g_vad_menu_index, new_label);
     }
     
-    // Show status and reload model
-    const char *status = is_enabled ? "disabled" : "enabled";
-    char message[256];
-    snprintf(message, sizeof(message), "Voice Activity Detection has been %s. Reloading model...", status);
-    dialog_info("VAD Settings", message);
-    
     // Pause keylogger during reload
     keylogger_pause();
     
