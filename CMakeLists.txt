@@ -67,6 +67,7 @@ if(APPLE)
         src/mac/utils.m
         src/mac/dispatch.m
         src/mac/http.m
+        src/mac/audio_permission.m
         src/preferences.c
     )
     target_link_libraries(platform PUBLIC ${PLATFORM_FRAMEWORKS})
@@ -277,6 +278,13 @@ foreach(target yakety-cli yakety-app transcribe)
     )
     target_compile_definitions(${target} PRIVATE WHISPER_AVAILABLE)
 endforeach()
+
+# Add miniaudio compile definitions for proper framework linking on macOS
+if(APPLE)
+    foreach(target yakety-cli yakety-app recorder transcribe)
+        target_compile_definitions(${target} PRIVATE MA_NO_RUNTIME_LINKING)
+    endforeach()
+endif()
 
 # Find and link OpenMP if available (needed for whisper.cpp)
 find_package(OpenMP)

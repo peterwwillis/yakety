@@ -2,6 +2,7 @@
 #include "audio.h"
 #include "miniaudio.h"
 #include "utils.h"
+#include "audio_permission.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -83,6 +84,15 @@ bool audio_recorder_init(void) {
     if (g_recorder) {
         return false; // Already initialized
     }
+    
+#ifdef __APPLE__
+    // Check and request microphone permission on macOS
+    if (!check_and_request_microphone_permission()) {
+        fprintf(stderr, "Microphone permission denied\n");
+        return false;
+    }
+#endif
+    
     g_recorder = (AudioRecorder *) calloc(1, sizeof(AudioRecorder));
     if (!g_recorder) {
         return false;
