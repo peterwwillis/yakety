@@ -2,7 +2,7 @@
 #include "audio.h"
 #include "miniaudio.h"
 #include "utils.h"
-#include "audio_permission.h"
+#include "logging.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -84,15 +84,7 @@ bool audio_recorder_init(void) {
     if (g_recorder) {
         return false; // Already initialized
     }
-    
-#ifdef __APPLE__
-    // Check and request microphone permission on macOS
-    if (!check_and_request_microphone_permission()) {
-        fprintf(stderr, "Microphone permission denied\n");
-        return false;
-    }
-#endif
-    
+
     g_recorder = (AudioRecorder *) calloc(1, sizeof(AudioRecorder));
     if (!g_recorder) {
         return false;
@@ -108,7 +100,7 @@ bool audio_recorder_init(void) {
 
     // Initialize device
     if (ma_device_init(NULL, &deviceConfig, &g_recorder->device) != MA_SUCCESS) {
-        fprintf(stderr, "Failed to initialize audio device\n");
+        log_error("Failed to initialize audio device");
         free(g_recorder);
         g_recorder = NULL;
         return false;
@@ -138,7 +130,7 @@ int audio_recorder_start_file(const char *filename) {
 
     // Initialize encoder
     if (ma_encoder_init_file(filename, &encoderConfig, &g_recorder->encoder) != MA_SUCCESS) {
-        fprintf(stderr, "Failed to initialize encoder for file: %s\n", filename);
+        log_error("Failed to initialize encoder for file: %s", filename);
         return -1;
     }
 

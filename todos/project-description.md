@@ -29,10 +29,13 @@ A cross-platform speech-to-text application that provides instant voice transcri
 Platform abstraction layer pattern with cross-platform core and platform-specific implementations. Main workflow: Hotkey → Audio Recording → Transcription → Clipboard. Components include tray menu, dialogs, preferences, and model management.
 
 ## Commands
-- Build: `./build.sh` or `cmake --preset release && cmake --build --preset release`
-- Test: `./build/bin/test-model-dialog` (UI tests only)
-- Package: `cmake --build build --target package`
-- Dev/Run: `./build/bin/yakety-cli` or `open ./build/bin/Yakety.app`
+- Build: `./run.sh` (release) or `./run.sh debug` (debug build)
+- Build & Run: `./run.sh run`
+- Clean Build: `./run.sh clean`
+- Package: `./run.sh package` (includes notarization)
+- Upload: `./run.sh upload` (includes notarization & packaging)
+- Check Permissions: `./permissions.sh`
+- Clear Permissions: `./permissions.sh clear`
 
 ## Testing
 Create UI tests in `src/tests/test_<component>.c` following the app framework pattern. Add to CMakeLists.txt and build as standalone executables. No unit testing framework currently integrated.

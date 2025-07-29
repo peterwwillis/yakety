@@ -18,11 +18,9 @@
 #include "transcription.h"
 #include "utils.h"
 
-
 #include "dialog.h"
 
 // Constants
-#define PERMISSION_RETRY_DELAY_MS 500
 #define MIN_RECORDING_DURATION 0.1
 
 typedef struct {
@@ -82,76 +80,31 @@ static bool setup_menu_if_needed(void) {
     return true;
 }
 
-// Handle keylogger permission issues on macOS
-static bool handle_keylogger_permissions(void) {
-#ifdef __APPLE__
-    if (!app_is_console()) {
-        // Need accessibility permission on macOS tray apps
-        int response = dialog_accessibility_permission();
-        if (response == 0) {
-            // User says they granted permission - retry
-            app_sleep_responsive(PERMISSION_RETRY_DELAY_MS);
-            return true; // Should retry
-        } else if (response == 1) {
-            // Open System Preferences and wait
-            utils_open_accessibility_settings();
-            if (dialog_wait_for_permission()) {
-                app_sleep_responsive(PERMISSION_RETRY_DELAY_MS);
-                return true; // Should retry
-            } else {
-                // User chose to quit
-                app_quit();
-                return false;
-            }
-        } else {
-            // User chose to quit
-            app_quit();
-            return false;
-        }
-    } else {
-        // CLI app - just log and exit
-        log_error("Failed to initialize keyboard monitoring");
-        log_error("Please grant accessibility permission in System Preferences → Security & Privacy → Privacy → "
-                  "Accessibility");
-        app_quit();
-        return false;
-    }
-#else
-    // Non-macOS platforms
-    log_error("Failed to initialize keyboard monitoring");
-    app_quit();
-    return false;
-#endif
-}
-
 // Setup keylogger with permission handling
 static bool setup_keylogger(void) {
-    while (true) {
-        if (keylogger_init(on_key_press, on_key_release, on_key_cancel, g_state) == 0) {
-            log_info("✅ Keylogger started successfully");
+    if (keylogger_init(on_key_press, on_key_release, on_key_cancel, g_state) == 0) {
+        log_info("✅ Keylogger started successfully");
 
-            // Load saved hotkey from preferences
-            KeyCombination combo;
-            if (preferences_load_key_combination(&combo)) {
-                keylogger_set_combination(&combo);
-            } else {
-                // Use default
-                KeyCombination default_combo = keylogger_get_fn_combination();
-                keylogger_set_combination(&default_combo);
-#ifdef _WIN32
-                log_info("Using default Right Ctrl hotkey");
-#else
-                log_info("Using default FN key hotkey");
-#endif
-            }
-            return true;
+        // Load saved hotkey from preferences
+        KeyCombination combo;
+        if (preferences_load_key_combination(&combo)) {
+            keylogger_set_combination(&combo);
         } else {
-            // Keylogger init failed - handle permissions
-            if (!handle_keylogger_permissions()) {
-                return false; // User quit or error
-            }
-            // Continue loop to retry
+            // Use default
+            KeyCombination default_combo = keylogger_get_fn_combination();
+            keylogger_set_combination(&default_combo);
+#ifdef _WIN32
+            log_info("Using default Right Ctrl hotkey");
+#else
+            log_info("Using default FN key hotkey");
+#endif
         }
+        return true;
+    } else {
+        // Keylogger init failed after permissions were granted
+        log_error("Failed to initialize keyboard monitoring");
+        app_quit();
+        return false;
     }
 }
 
@@ -264,11 +217,11 @@ static void on_key_cancel(void *userdata) {
     if (state->recording) {
         state->recording = false;
         log_info("❌ Recording cancelled - additional key pressed");
-        
+
         // Stop recording and clean up
         audio_recorder_stop();
         overlay_hide();
-        
+
         // No transcription or text insertion
     }
 }

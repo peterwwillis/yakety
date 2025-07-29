@@ -179,13 +179,7 @@ const char *utils_get_vad_model_path(void) {
     return NULL;
 }
 
-void utils_open_accessibility_settings(void) {
-    @autoreleasepool {
-        [[NSWorkspace sharedWorkspace]
-            openURL:
-                [NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"]];
-    }
-}
+// Permission settings opening is now handled by src/mac/permissions.m
 
 bool utils_is_launch_at_login_enabled(void) {
     @autoreleasepool {

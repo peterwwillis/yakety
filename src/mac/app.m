@@ -4,6 +4,7 @@
 #include "../overlay.h"
 #include "../utils.h"
 #include "dispatch.h"
+#include "permissions.h"
 #import <AVFoundation/AVFoundation.h>
 #import <Cocoa/Cocoa.h>
 #include <pthread.h>
@@ -27,7 +28,7 @@ static AppConfig g_config = {0};
 - (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)flag {
     (void)sender;
     (void)flag;
-    
+
     // When user tries to open the app again (e.g., clicking Dock icon or launching again),
     // show the context menu instead
     if (!g_config.is_console) {
@@ -38,6 +39,15 @@ static AppConfig g_config = {0};
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     (void) notification;
+
+    // Explicitly activate the app to ensure it's in the foreground before requesting permissions.
+    // This is crucial for the permission dialog to appear reliably.
+    [NSApp activateIgnoringOtherApps:YES];
+
+    // For GUI apps, check and request microphone permission
+    if (!check_microphone_permission()) {
+        request_microphone_permission();
+    }
 
     // Switch to accessory mode after launch for tray apps
     if (!g_config.is_console) {
@@ -74,19 +84,19 @@ int app_init(const char *name, const char *version, bool is_console, AppReadyCal
 
     // Initialize NSApplication
     [NSApplication sharedApplication];
-    
+
     // For tray apps, check if another instance is already running
     if (!is_console) {
         NSArray *runningApps = [[NSWorkspace sharedWorkspace] runningApplications];
         NSString *bundleId = [[NSBundle mainBundle] bundleIdentifier];
-        
+
         int instanceCount = 0;
         for (NSRunningApplication *app in runningApps) {
             if ([app.bundleIdentifier isEqualToString:bundleId]) {
                 instanceCount++;
             }
         }
-        
+
         // If there's already another instance running, send it a reopen event and exit
         if (instanceCount > 1) {
             // Find the other running instance and activate it
@@ -112,6 +122,9 @@ int app_init(const char *name, const char *version, bool is_console, AppReadyCal
         if (g_config.on_ready) {
             // Schedule on_ready to run on the next iteration of the run loop
             dispatch_async(dispatch_get_main_queue(), ^{
+            if (!check_microphone_permission()) {
+                request_microphone_permission();
+            }
               g_config.on_ready();
             });
         }

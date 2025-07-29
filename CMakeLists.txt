@@ -67,7 +67,7 @@ if(APPLE)
         src/mac/utils.m
         src/mac/dispatch.m
         src/mac/http.m
-        src/mac/audio_permission.m
+        src/mac/permissions.m
         src/preferences.c
     )
     target_link_libraries(platform PUBLIC ${PLATFORM_FRAMEWORKS})
@@ -105,7 +105,7 @@ endif()
 
 # Add Swift generated header include path for Xcode builds
 if(APPLE AND CMAKE_GENERATOR STREQUAL "Xcode")
-    target_include_directories(platform PRIVATE 
+    target_include_directories(platform PRIVATE
         "$<$<CONFIG:Debug>:${CMAKE_BINARY_DIR}/platform.build/Debug/DerivedSources>"
         "$<$<CONFIG:Release>:${CMAKE_BINARY_DIR}/platform.build/Release/DerivedSources>"
     )
@@ -192,7 +192,7 @@ elseif(APPLE)
         target_sources(yakety-app PRIVATE ${WHISPER_MODEL})
     endif()
 
-    # Copy VAD model to bundle  
+    # Copy VAD model to bundle
     if(EXISTS ${VAD_MODEL})
         set_source_files_properties(${VAD_MODEL} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/models")
         target_sources(yakety-app PRIVATE ${VAD_MODEL})
@@ -258,8 +258,8 @@ if(APPLE)
     endif()
 elseif(WIN32 AND HAS_VULKAN)
     # Check both possible locations for ggml-vulkan library
-    find_library(GGML_VULKAN_LIBRARY NAMES ggml-vulkan 
-        PATHS 
+    find_library(GGML_VULKAN_LIBRARY NAMES ggml-vulkan
+        PATHS
             "${GGML_LIB_DIR}/../ggml-vulkan/Release"  # Visual Studio location
             "${GGML_LIB_DIR}/ggml-vulkan"              # Ninja location
         NO_DEFAULT_PATH)
@@ -482,20 +482,20 @@ elseif(WIN32)
         COMMAND ${CMAKE_COMMAND} -E remove -f ${CMAKE_BINARY_DIR}/Yakety-windows.zip
         COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/Yakety
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/Yakety
-        
+
         # Copy files to Yakety directory
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/bin/Yakety.exe ${CMAKE_BINARY_DIR}/Yakety/
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/bin/models ${CMAKE_BINARY_DIR}/Yakety/models
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/bin/menubar.png ${CMAKE_BINARY_DIR}/Yakety/
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/bin/recorder.exe ${CMAKE_BINARY_DIR}/Yakety/
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/bin/transcribe.exe ${CMAKE_BINARY_DIR}/Yakety/
-        
+
         # Create zip with Yakety folder
         COMMAND ${CMAKE_COMMAND} -E tar c ${CMAKE_BINARY_DIR}/Yakety-windows.zip --format=zip Yakety
-        
+
         # Clean up temp directory
         COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/Yakety
-        
+
         COMMAND ${CMAKE_COMMAND} -E echo "✅ Created Yakety-windows.zip"
         COMMENT "Creating Yakety app distribution for Windows..."
         VERBATIM
@@ -524,7 +524,7 @@ if(WIN32)
         "    scp \"%%f\" badlogic@slayer.marioslab.io:/home/badlogic/mariozechner.at/html/uploads/\n"
         ")\n"
     )
-    
+
     add_custom_target(upload
         DEPENDS package
         COMMAND cmd /c ${CMAKE_BINARY_DIR}/upload.bat
@@ -552,8 +552,8 @@ if(APPLE)
         RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin
         RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin
     )
-    
-    
+
+
     # Key combination dialog test
     add_executable(test-keycombination-dialog src/tests/test_keycombination_dialog.c)
     target_link_libraries(test-keycombination-dialog platform)
@@ -563,7 +563,7 @@ if(APPLE)
         RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin
         RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin
     )
-    
+
     # Download dialog test
     add_executable(test-download-dialog src/tests/test_download_dialog.c)
     target_link_libraries(test-download-dialog platform)

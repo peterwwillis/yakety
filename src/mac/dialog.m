@@ -2,6 +2,7 @@
 #include "../http.h"
 #import <Cocoa/Cocoa.h>
 #import <objc/runtime.h>
+#import <IOKit/hidsystem/IOHIDLib.h>
 
 
 void dialog_error(const char *title, const char *message) {
@@ -35,40 +36,7 @@ bool dialog_confirm(const char *title, const char *message) {
     }
 }
 
-int dialog_accessibility_permission(void) {
-    @autoreleasepool {
-        NSAlert *alert = [[NSAlert alloc] init];
-        [alert setMessageText:@"Accessibility Permission Required"];
-        [alert setInformativeText:@"Yakety needs accessibility permission to monitor the FN key.\n\n1. Click 'Open "
-                                  @"System Preferences' to grant permission\n2. Then click 'I've Granted Permission' "
-                                  @"to continue\n3. Or click 'Quit' to exit"];
-        [alert addButtonWithTitle:@"I've Granted Permission"];
-        [alert addButtonWithTitle:@"Open System Preferences"];
-        [alert addButtonWithTitle:@"Quit"];
-
-        NSModalResponse response = [alert runModal];
-
-        if (response == NSAlertFirstButtonReturn) {
-            return 0; // Granted permission
-        } else if (response == NSAlertSecondButtonReturn) {
-            return 1; // Open preferences
-        } else {
-            return 2; // Quit
-        }
-    }
-}
-
-bool dialog_wait_for_permission(void) {
-    @autoreleasepool {
-        NSAlert *alert = [[NSAlert alloc] init];
-        [alert setMessageText:@"Waiting for Permission"];
-        [alert setInformativeText:@"Please grant accessibility permission in System Preferences, then click Continue."];
-        [alert addButtonWithTitle:@"Continue"];
-        [alert addButtonWithTitle:@"Quit"];
-
-        return [alert runModal] == NSAlertFirstButtonReturn;
-    }
-}
+// Permission dialogs are now handled by src/mac/permissions.m
 
 // Note: dialog_keycombination_capture, dialog_models_and_language, and dialog_model_download
 // are now implemented directly in Swift using @_cdecl and will be linked automatically
