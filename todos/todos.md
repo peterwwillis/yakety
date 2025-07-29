@@ -1,2 +1,3 @@
 - sometimes when i press the keycombo, recording starts and transcriptions and pasting happens, but i never see the overalay. the logs do say this:
 - sometimes the hole system input freezes up, yakety still receives keyboard input, but nothing else is. until the keylogger tap is disabled by the system, and ree-nabled by yakety.
+- investigate faster-whisper/CTranslate2 - claims 4-5x speedup but no Metal support on macOS. whisper.cpp already gives us 3x with Metal. maybe useful for Windows/Linux builds? not worth it for Mac unless they add Metal support.
