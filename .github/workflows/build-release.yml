@@ -6,8 +6,8 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Tag name to build (e.g. v1.0.0). Required for manual runs.'
+      ref:
+        description: 'Tag or branch name to build (e.g. v1.0.0 or fix/my-branch). Required for manual runs.'
         required: true
 
 permissions:
@@ -35,7 +35,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
           fetch-depth: 0
           fetch-tags: true
           submodules: recursive
@@ -122,7 +122,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
           fetch-depth: 0
           fetch-tags: true
 
@@ -208,10 +208,10 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-          name: Release ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          tag: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref_name }}
+          name: Release ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref_name }}
           body: |
-            ## Yakety Release ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+            ## Yakety Release ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref_name }}
             
             Cross-platform speech-to-text application built for:
             - 🐧 Linux (x64) - Download `linux.zip`

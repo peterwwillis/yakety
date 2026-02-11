@@ -1,7 +1,8 @@
 {
     "name": "Yakety Linux Build",
     "build": {
-        "dockerfile": "Dockerfile"
+        "dockerfile": "Dockerfile",
+        "context": ".."
     },
     "features": {
         "ghcr.io/devcontainers/features/git:1": {}
