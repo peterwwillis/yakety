@@ -1,0 +1,230 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag name to build (e.g. v1.0.0). Required for manual runs.'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x64
+            platform: linux
+          - os: macos-latest
+            arch: arm64
+            platform: macos
+          - os: windows-latest
+            arch: x64
+            platform: windows
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          fetch-depth: 0
+          fetch-tags: true
+          submodules: recursive
+
+      - name: Setup dependencies (Ubuntu)
+        if: matrix.platform == 'linux'
+        run: |
+          chmod +x ./setup-linux.sh
+          ./setup-linux.sh
+
+      - name: Setup dependencies (macOS)
+        if: matrix.platform == 'macos'
+        run: |
+          chmod +x ./setup-macos.sh
+          ./setup-macos.sh
+
+      - name: Setup MSVC (Windows)
+        if: matrix.platform == 'windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Setup dependencies (Windows)
+        if: matrix.platform == 'windows'
+        shell: powershell
+        run: |
+          # Check if running as admin - GitHub Actions runners already have admin
+          # If Chocolatey is not installed, install it
+          if (-not (Test-Path -Path "$env:ProgramData\chocolatey\bin\choco.exe")) {
+              Write-Host "Installing Chocolatey..."
+              Set-ExecutionPolicy Bypass -Scope Process -Force
+              [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+              iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+          }
+          # Now run the setup script
+          Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+          .\setup-windows.ps1
+
+      - name: Build project
+        shell: bash
+        run: |
+          chmod +x ./run.sh
+          ./run.sh
+
+      - name: List build artifacts
+        shell: bash
+        run: |
+          echo "=== Build directory contents ==="
+          find build/bin -type f 2>/dev/null || echo "No build/bin directory"
+          echo ""
+          echo "=== All directories ==="
+          find build -maxdepth 2 -type d 2>/dev/null || true
+          echo ""
+          echo "=== Checking for expected binaries ==="
+          if [ -f "build/bin/yakety-cli" ] || [ -f "build/bin/yakety-cli.exe" ]; then
+            echo "✅ yakety-cli found"
+          else
+            echo "⚠️ yakety-cli not found"
+          fi
+          if [ -d "build/bin/Yakety.app" ] || [ -f "build/bin/Yakety.exe" ] || [ -f "build/bin/Yakety" ]; then
+            echo "✅ Yakety app found"
+          else
+            echo "⚠️ Yakety app not found"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: yakety-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.run_id }}
+          path: |
+            build/bin/yakety-cli*
+            build/bin/Yakety*
+            build/bin/*.exe
+            build/bin/*.app
+          retention-days: 7
+          if-no-files-found: error
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+
+      - name: Organize artifacts
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          echo "=== All downloaded artifacts ==="
+          find all-artifacts -type f
+          echo ""
+          echo "=== Organizing files by platform ==="
+          
+          # Process each artifact directory and organize by platform
+          for artifact_dir in all-artifacts/yakety-*; do
+            if [ -d "$artifact_dir" ]; then
+              # Extract platform info from directory name
+              # Format: yakety-{platform}-{arch}-{run_id}
+              dir_name=$(basename "$artifact_dir")
+              platform=$(echo "$dir_name" | cut -d'-' -f2)
+              arch=$(echo "$dir_name" | cut -d'-' -f3)
+              
+              # Create platform directory
+              platform_dir="release-assets/${platform}"
+              mkdir -p "$platform_dir"
+              
+              echo "Processing $platform-$arch artifacts..."
+              
+              # Copy files to platform directory
+              for file in "$artifact_dir"/*; do
+                if [ -f "$file" ]; then
+                  filename=$(basename "$file")
+                  cp "$file" "$platform_dir/$filename"
+                  echo "  → $platform_dir/$filename"
+                fi
+              done
+              
+              # Handle .app bundles on macOS (these are directories)
+              for app_bundle in "$artifact_dir"/*.app; do
+                if [ -d "$app_bundle" ]; then
+                  app_name=$(basename "$app_bundle")
+                  echo "  → Copying macOS app bundle: $app_name"
+                  cp -r "$app_bundle" "$platform_dir/"
+                fi
+              done
+            fi
+          done
+          
+          echo ""
+          echo "=== Creating platform-specific zip files ==="
+          
+          # Create zip files for each platform directory
+          cd release-assets
+          for platform_dir in */; do
+            if [ -d "$platform_dir" ]; then
+              platform_name="${platform_dir%/}"
+              zip_name="${platform_name}.zip"
+              echo "Creating $zip_name..."
+              zip -r -q "$zip_name" "$platform_name"
+              echo "  ✅ Created $zip_name"
+            fi
+          done
+          cd ..
+          
+          echo ""
+          echo "=== Release assets structure ==="
+          ls -lah release-assets/
+          echo ""
+          echo "=== Platform directories ==="
+          for dir in release-assets/*/; do
+            if [ -d "$dir" ]; then
+              echo "$(basename "$dir"):"
+              ls -lah "$dir"
+              echo ""
+            fi
+          done
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          name: Release ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          body: |
+            ## Yakety Release ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+            
+            Cross-platform speech-to-text application built for:
+            - 🐧 Linux (x64) - Download `linux.zip`
+            - 🍎 macOS (ARM64/Apple Silicon) - Download `macos.zip`
+            - 🪟 Windows (x64) - Download `windows.zip`
+            
+            ### Installation
+            Download the appropriate zip file for your platform from the assets below and extract it.
+            
+            ### What's Changed
+            See commit history for details.
+          artifacts: "release-assets/*"
+          allowUpdates: true
+          replacesArtifacts: true
+          draft: false
+          prerelease: false
