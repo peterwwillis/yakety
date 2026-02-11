@@ -8,11 +8,17 @@ set -e
 echo "=== Installing macOS Dependencies for Yakety ==="
 echo ""
 
-# Check if Homebrew is installed
+# Check if Homebrew is installed, install if not
 if ! command -v brew &> /dev/null; then
-    echo "❌ Homebrew not found. Please install Homebrew first:"
-    echo "   /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
-    exit 1
+    echo "Homebrew not found. Installing Homebrew..."
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    
+    # Add Homebrew to PATH if needed
+    if [ -f "$HOME/.bashrc" ]; then
+        eval "$($HOMEBREW_PREFIX/bin/brew shellenv)"
+    fi
+else
+    echo "Homebrew found"
 fi
 
 # Install build tools
@@ -37,12 +43,3 @@ fi
 # Optional: Install additional development tools
 echo "Installing optional development tools..."
 brew install git curl wget pkg-config
-
-echo ""
-echo "✅ macOS dependencies installed successfully!"
-echo ""
-echo "You can now build Yakety with:"
-echo "  ./run.sh                    # Build release"
-echo "  ./run.sh debug              # Build debug"
-echo "  ./run.sh package            # Build and package"
-echo "  ./run.sh upload             # Build and upload release"
